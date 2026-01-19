@@ -156,9 +156,9 @@ def calcular_ultimo_dia_util_ano_anterior(data_ref):
 # 1. CONFIGURAÇÃO VISUAL (IDENTIDADE GHIA - MODO ESCURO SIDEBAR)
 # ==============================================================================
 st.set_page_config(
-    page_title="Weekly", 
+    page_title="Weekly Dashboard - Ghia", 
     layout="wide", 
-    page_icon="",
+    page_icon="www/favicon.png",
     initial_sidebar_state="expanded",
     menu_items=None
 )
