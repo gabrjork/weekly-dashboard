@@ -1363,6 +1363,12 @@ def get_data_yahoo(data_inicio, data_fim):
         df_ret.reset_index(inplace=True)
         df_ret = df_ret.rename(columns={"Date": "Data"})
         
+        # CORREÇÃO: Remove timezone do yfinance (UTC) para compatibilidade com Comdinheiro (naive)
+        # yfinance retorna datetime64[ns, UTC], Comdinheiro usa datetime64[ns] sem timezone
+        # Sem isso, o merge cria tipos mistos e as comparações de datas falham
+        if df_ret['Data'].dt.tz is not None:
+            df_ret['Data'] = df_ret['Data'].dt.tz_localize(None)
+        
         # Renomeia para nomes legíveis (remove extensões como .L, .AS)
         rename_map = {ticker: name for ticker, name in tickers.items()}
         df_ret = df_ret.rename(columns=rename_map)
@@ -1523,7 +1529,74 @@ def calcular_retornos_mensais(df, ativo):
     
     return heatmap_data
 
+def validar_e_obter_periodo_custom():
+    """
+    Função centralizada para validar e obter período personalizado do session_state.
+    Retorna: (data_ini, data_fim, is_valid, mensagem_erro)
+    """
+    data_ini = st.session_state.get('data_cust_ini')
+    data_fim = st.session_state.get('data_cust_fim')
+    
+    if not data_ini or not data_fim:
+        return None, None, False, "Datas não definidas"
+    
+    # Converte para date se necessário
+    if isinstance(data_ini, datetime):
+        data_ini = data_ini.date()
+    if isinstance(data_fim, datetime):
+        data_fim = data_fim.date()
+    
+    # Validações
+    if data_ini > data_fim:
+        return data_ini, data_fim, False, "Data inicial não pode ser maior que data final"
+    
+    # Verifica se está no range dos dados disponíveis
+    # (essa validação pode ser feita no contexto onde df_historico está disponível)
+    
+    return data_ini, data_fim, True, None
+
+def calcular_retorno_acumulado_robusto(df_retornos: pd.DataFrame) -> pd.DataFrame:
+    """Calcula retorno acumulado por ativo a partir de retornos diários.
+
+    - Mantém NaN antes do primeiro ponto válido de cada série (inception).
+    - Preenche NaNs APÓS o inception com 0 (sem variação) para não quebrar o cumprod.
+    """
+    if df_retornos is None or df_retornos.empty:
+        return df_retornos
+
+    df = df_retornos.copy()
+    df = df.sort_index()
+
+    out = pd.DataFrame(index=df.index)
+    for col in df.columns:
+        s = pd.to_numeric(df[col], errors='coerce')
+        first_valid = s.first_valid_index()
+        if first_valid is None:
+            out[col] = np.nan
+            continue
+
+        s2 = s.copy()
+        mask_after = s2.index >= first_valid
+        s2.loc[mask_after] = s2.loc[mask_after].fillna(0)
+        acc = (1 + s2).cumprod() - 1
+        acc.loc[~mask_after] = np.nan
+        out[col] = acc
+
+    return out
+
 def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, calcular_itd=False, tipo_semana="Semana Passada"):
+    # Debug entrada da função (salvo em session_state)
+    if usar_custom:
+        if 'debug_info' not in st.session_state:
+            st.session_state.debug_info = {}
+        st.session_state.debug_info['processar_mestre_custom'] = {
+            'usar_custom': usar_custom,
+            'd_custom_ini': str(d_custom_ini),
+            'd_custom_ini_type': str(type(d_custom_ini)),
+            'd_custom_fim': str(d_custom_fim),
+            'd_custom_fim_type': str(type(d_custom_fim))
+        }
+    
     # Se usar período customizado, a data de referência deve ser a data final do período custom
     if usar_custom and d_custom_fim:
         data_ref = pd.to_datetime(d_custom_fim)
@@ -1586,6 +1659,17 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
     df_cust = pd.DataFrame()
     if usar_custom and d_custom_ini and d_custom_fim:
         df_cust = calcular_metricas(df, "Custom", pd.to_datetime(d_custom_ini), pd.to_datetime(d_custom_fim))
+        
+        # Salva info de debug
+        if 'debug_info' not in st.session_state:
+            st.session_state.debug_info = {}
+        st.session_state.debug_info['df_cust_info'] = {
+            'vazio': df_cust.empty,
+            'linhas': len(df_cust),
+            'colunas': df_cust.columns.tolist() if not df_cust.empty else [],
+            'd_custom_ini_convertido': str(pd.to_datetime(d_custom_ini)),
+            'd_custom_fim_convertido': str(pd.to_datetime(d_custom_fim))
+        }
         
     mestre = df_ytd.copy()
     if not mestre.empty:
@@ -1659,6 +1743,17 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
 # 5. UI - BARRA LATERAL (CONFIGURAÇÕES GLOBAIS)
 # ==============================================================================
 
+# Fonte única da verdade para período/análise (persistente entre abas)
+if 'modo_analise' not in st.session_state:
+    st.session_state.modo_analise = "Padrão (YTD/MTD/Sem)"
+if 'data_cust_ini' not in st.session_state:
+    # Mantém como datetime/date para compatibilidade com st.date_input
+    st.session_state.data_cust_ini = datetime(2024, 1, 1)
+if 'data_cust_fim' not in st.session_state:
+    st.session_state.data_cust_fim = datetime.today()
+if 'custom_period_valid' not in st.session_state:
+    st.session_state.custom_period_valid = False
+
 with st.sidebar:
     st.markdown("<h3 style='color: #189CD8;'> <strong>        Painel de Controle</strong></h3>", unsafe_allow_html=True)
     st.markdown("---")
@@ -1698,6 +1793,77 @@ with st.sidebar:
     # 2. CONFIGURAÇÕES GLOBAIS
     st.markdown("<h4 style='color: #189CD8;'> <strong>Data de Referência</strong></h4>", unsafe_allow_html=True)
     data_ref = st.date_input("Selecione a data", value=datetime.today(), format="DD/MM/YYYY", label_visibility="collapsed")
+
+    st.markdown("---")
+
+    # 2.0 PERÍODO DE ANÁLISE (GLOBAL)
+    st.markdown("<h4 style='color: #189CD8;'> <strong>Período de Análise</strong></h4>", unsafe_allow_html=True)
+    opcoes_modo = ["Padrão (YTD/MTD/Sem)", "Período Personalizado", "Com ITD (Inception to Date)"]
+    index_modo = opcoes_modo.index(st.session_state.modo_analise) if st.session_state.modo_analise in opcoes_modo else 0
+    st.selectbox(
+        "Modo:",
+        opcoes_modo,
+        index=index_modo,
+        key="modo_analise",
+        help="Define o modo global. 'Período Personalizado' habilita datas custom. 'Com ITD' adiciona ITD quando disponível."
+    )
+
+    if 'debug_info' not in st.session_state:
+        st.session_state.debug_info = {}
+    st.session_state.debug_info['modo_analise_detectado'] = st.session_state.modo_analise
+    st.session_state.debug_info['modo_analise_comparacao'] = {
+        'modo_analise_valor': st.session_state.modo_analise,
+        'e_igual_periodo_personalizado': st.session_state.modo_analise == "Período Personalizado",
+    }
+
+    # Datas do período custom (quando ativo)
+    if st.session_state.modo_analise == "Período Personalizado":
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            st.date_input(
+                "Início",
+                value=st.session_state.data_cust_ini,
+                format="DD/MM/YYYY",
+                key="data_cust_ini",
+                help="Primeira data do período personalizado"
+            )
+        with col_c2:
+            st.date_input(
+                "Fim",
+                value=st.session_state.data_cust_fim,
+                format="DD/MM/YYYY",
+                key="data_cust_fim",
+                help="Última data do período personalizado"
+            )
+
+        data_ini_v, data_fim_v, is_valid, msg_erro = validar_e_obter_periodo_custom()
+
+        # Valida também contra o range do dataset (se já carregado)
+        df_range = st.session_state.get('df_historico')
+        if is_valid and isinstance(df_range, pd.DataFrame) and 'Data' in df_range.columns and not df_range.empty:
+            data_min = df_range['Data'].min().date()
+            data_max = df_range['Data'].max().date()
+            if data_ini_v < data_min or data_fim_v > data_max:
+                st.warning(
+                    f"Dados disponíveis apenas entre {data_min.strftime('%d/%m/%Y')} e {data_max.strftime('%d/%m/%Y')}. "
+                    f"O recorte será aplicado dentro desse intervalo."
+                )
+
+        st.session_state.custom_period_valid = bool(is_valid)
+        if not is_valid:
+            st.error(msg_erro if msg_erro else "Período inválido")
+        else:
+            st.caption(f"Período custom: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')}")
+
+        st.session_state.debug_info['analise_categoria_custom'] = {
+            'data_cust_ini': str(st.session_state.get('data_cust_ini')),
+            'data_cust_fim': str(st.session_state.get('data_cust_fim')),
+            'isoformat_ini': data_ini_v.isoformat() if data_ini_v else None,
+            'isoformat_fim': data_fim_v.isoformat() if data_fim_v else None,
+            'custom_period_valid': bool(is_valid)
+        }
+    else:
+        st.session_state.custom_period_valid = False
     
     st.markdown("---")
     
@@ -1862,15 +2028,32 @@ else:
 # Só processa dados se já foram carregados
 if st.session_state.dados_carregados and df_historico is not None:
     
-    # Processa dados iniciais (será reprocessado em cada aba com seus próprios parâmetros)
+    # Processa dados iniciais com as configurações globais (sidebar)
     tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
+    modo_analise_global = st.session_state.get('modo_analise', "Padrão (YTD/MTD/Sem)")
+    calcular_itd_global = (modo_analise_global == "Com ITD (Inception to Date)")
+    usar_custom_global = (modo_analise_global == "Período Personalizado") and st.session_state.get('custom_period_valid', False)
+
+    d_custom_ini_iso, d_custom_fim_iso = None, None
+    if usar_custom_global:
+        data_ini_v, data_fim_v, is_valid, _ = validar_e_obter_periodo_custom()
+        if is_valid and data_ini_v and data_fim_v:
+            d_custom_ini_iso = data_ini_v.isoformat()
+            d_custom_fim_iso = data_fim_v.isoformat()
+        else:
+            usar_custom_global = False
+
+    if 'debug_info' not in st.session_state:
+        st.session_state.debug_info = {}
+    st.session_state.debug_info['modo_analise_detectado'] = modo_analise_global
+
     df_resumo, periodos_info_global = processar_mestre(
-        df_historico, 
-        str(data_ref), 
-        False,
-        None,
-        None,
-        calcular_itd=False,
+        df_historico,
+        str(data_ref),
+        usar_custom_global,
+        d_custom_ini_iso,
+        d_custom_fim_iso,
+        calcular_itd=calcular_itd_global,
         tipo_semana=tipo_semana
     )
     
@@ -1938,6 +2121,52 @@ if st.session_state.dados_carregados and df_historico is not None:
         relatorio_data.append({"Categoria": "DataFrame Atual", "Item": "Colunas", "Valor": len(df_historico.columns)})
         relatorio_data.append({"Categoria": "DataFrame Atual", "Item": "Data Min", "Valor": df_historico['Data'].min().strftime('%d/%m/%Y')})
         relatorio_data.append({"Categoria": "DataFrame Atual", "Item": "Data Max", "Valor": df_historico['Data'].max().strftime('%d/%m/%Y')})
+    
+    # Debug de Modo de Análise (sempre inclui)
+    relatorio_data.append({"Categoria": "Debug Modo", "Item": "Modo Detectado", "Valor": debug.get('modo_analise_detectado', 'N/A')})
+    
+    if 'modo_analise_comparacao' in debug:
+        comp = debug['modo_analise_comparacao']
+        relatorio_data.append({"Categoria": "Debug Modo", "Item": "modo_analise Valor", "Valor": comp.get('modo_analise_valor', 'N/A')})
+        relatorio_data.append({"Categoria": "Debug Modo", "Item": "É Período Personalizado?", "Valor": comp.get('e_igual_periodo_personalizado', 'N/A')})
+        relatorio_data.append({"Categoria": "Debug Modo", "Item": "Session State modo", "Valor": comp.get('session_state_modo', 'N/A')})
+        relatorio_data.append({"Categoria": "Debug Modo", "Item": "Widget Key", "Valor": comp.get('widget_key', 'N/A')})
+    
+    # Debug de Período Personalizado
+    if 'analise_categoria_custom' in debug:
+        custom = debug['analise_categoria_custom']
+        relatorio_data.append({"Categoria": "Período Custom", "Item": "Data Inicial", "Valor": custom.get('data_cust_ini', 'N/A')})
+        relatorio_data.append({"Categoria": "Período Custom", "Item": "Data Final", "Valor": custom.get('data_cust_fim', 'N/A')})
+        relatorio_data.append({"Categoria": "Período Custom", "Item": "ISO Format Ini", "Valor": custom.get('isoformat_ini', 'N/A')})
+        relatorio_data.append({"Categoria": "Período Custom", "Item": "ISO Format Fim", "Valor": custom.get('isoformat_fim', 'N/A')})
+    
+    if 'processar_mestre_custom' in debug:
+        pm = debug['processar_mestre_custom']
+        relatorio_data.append({"Categoria": "Processar Mestre", "Item": "usar_custom", "Valor": pm.get('usar_custom', 'N/A')})
+        relatorio_data.append({"Categoria": "Processar Mestre", "Item": "d_custom_ini", "Valor": pm.get('d_custom_ini', 'N/A')})
+        relatorio_data.append({"Categoria": "Processar Mestre", "Item": "d_custom_fim", "Valor": pm.get('d_custom_fim', 'N/A')})
+    
+    if 'df_cust_info' in debug:
+        cust = debug['df_cust_info']
+        relatorio_data.append({"Categoria": "df_cust", "Item": "Vazio?", "Valor": cust.get('vazio', 'N/A')})
+        relatorio_data.append({"Categoria": "df_cust", "Item": "Linhas", "Valor": cust.get('linhas', 'N/A')})
+        relatorio_data.append({"Categoria": "df_cust", "Item": "Colunas", "Valor": ', '.join(cust.get('colunas', []))})
+        relatorio_data.append({"Categoria": "df_cust", "Item": "Data Ini Convertida", "Valor": cust.get('d_custom_ini_convertido', 'N/A')})
+        relatorio_data.append({"Categoria": "df_cust", "Item": "Data Fim Convertida", "Valor": cust.get('d_custom_fim_convertido', 'N/A')})
+    
+    if 'analise_categoria_resultado' in debug:
+        res = debug['analise_categoria_resultado']
+        relatorio_data.append({"Categoria": "Resultado Análise", "Item": "Linhas Retornadas", "Valor": res.get('linhas_retornadas', 'N/A')})
+        relatorio_data.append({"Categoria": "Resultado Análise", "Item": "df_resumo Vazio?", "Valor": res.get('df_resumo_vazio', 'N/A')})
+        relatorio_data.append({"Categoria": "Resultado Análise", "Item": "Colunas Retornadas", "Valor": ', '.join(res.get('colunas', []))})
+    
+    if 'graficos_filtro' in debug:
+        graf = debug['graficos_filtro']
+        relatorio_data.append({"Categoria": "Gráficos", "Item": "Período", "Valor": graf.get('periodo', 'N/A')})
+        relatorio_data.append({"Categoria": "Gráficos", "Item": "Ativos Selecionados", "Valor": graf.get('ativos_selecionados', 'N/A')})
+        relatorio_data.append({"Categoria": "Gráficos", "Item": "Linhas Após Máscara", "Valor": graf.get('linhas_apos_mascara', 'N/A')})
+        relatorio_data.append({"Categoria": "Gráficos", "Item": "Linhas Após Dropna", "Valor": graf.get('linhas_apos_dropna', 'N/A')})
+        relatorio_data.append({"Categoria": "Gráficos", "Item": "df_g Vazio?", "Valor": graf.get('df_vazio', 'N/A')})
     
     # Cria DataFrame e CSV
     df_relatorio = pd.DataFrame(relatorio_data)
@@ -2026,12 +2255,6 @@ if not df_resumo.empty:
             col_b3.metric("IFIX", "N/A", "Sem dados")
 
 # Inicializa session_state para persistência entre abas
-if 'modo_analise' not in st.session_state:
-    st.session_state.modo_analise = "Análise Padrão (Semana/MTD/YTD)"
-if 'data_cust_ini' not in st.session_state:
-    st.session_state.data_cust_ini = datetime(2024, 1, 1)
-if 'data_cust_fim' not in st.session_state:
-    st.session_state.data_cust_fim = datetime.today()
 if 'categoria_selecionada' not in st.session_state:
     st.session_state.categoria_selecionada = list(CATEGORIAS.keys())[0] if CATEGORIAS else None
 if 'periodo_categoria' not in st.session_state:
@@ -2052,57 +2275,30 @@ if 'exibir_so_ghia' not in st.session_state:
 tab_geral, tab_cat, tab_graf, tab_heatmap = st.tabs(["Visão Geral", "Análise por Categoria", "Gráficos", "Histórico Mensal"])
 
 with tab_geral:
-    # Controles específicos desta aba
-    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 2, 1])
-    
-    with col_ctrl1:
-        modo_analise = st.selectbox(
-            "Período de Análise:",
-            ["Padrão (YTD/MTD/Sem)", "Período Personalizado", "Com ITD (Inception to Date)"],
-            key="modo_analise_widget"
-        )
-        # Atualiza session_state
-        st.session_state.modo_analise = modo_analise
-    
-    modo_analise_map = {
-        "Padrão (YTD/MTD/Sem)": False,
-        "Período Personalizado": False,
-        "Com ITD (Inception to Date)": True
+    modo_analise = st.session_state.get('modo_analise', "Padrão (YTD/MTD/Sem)")
+    calcular_itd = (modo_analise == "Com ITD (Inception to Date)")
+
+    # Banner informativo sobre período custom ativo
+    if modo_analise == "Período Personalizado" and st.session_state.get('custom_period_valid', False):
+        data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
+        if data_ini_v and data_fim_v:
+            st.info(
+                f"Período Personalizado Ativo: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')} | Configurações na barra lateral"
+            )
+
+    # Reusa o processamento global (evita recomputação e conflitos de session_state)
+    df_resumo_temp = df_resumo
+    periodos_info = periodos_info_global
+
+    if 'debug_info' not in st.session_state:
+        st.session_state.debug_info = {}
+    st.session_state.debug_info['analise_categoria_resultado'] = {
+        'linhas_retornadas': len(df_resumo_temp),
+        'df_resumo_vazio': df_resumo_temp.empty,
+        'colunas': df_resumo_temp.columns.tolist() if not df_resumo_temp.empty else [],
+        'usar_custom_enviado': (modo_analise == "Período Personalizado" and st.session_state.get('custom_period_valid', False)),
+        'calcular_itd': calcular_itd
     }
-    calcular_itd = modo_analise_map.get(modo_analise, False)
-    
-    data_cust_ini, data_cust_fim = None, None
-    
-    with col_ctrl2:
-        if modo_analise == "Período Personalizado":
-            data_cust_ini = st.date_input("Data Inicial", value=st.session_state.data_cust_ini, format="DD/MM/YYYY", key="data_ini_geral")
-            st.session_state.data_cust_ini = data_cust_ini
-    
-    with col_ctrl3:
-        if modo_analise == "Período Personalizado":
-            data_cust_fim = st.date_input("Data Final", value=st.session_state.data_cust_fim, format="DD/MM/YYYY", key="data_fim_geral")
-            st.session_state.data_cust_fim = data_cust_fim
-    
-    # Validação e sinalização
-    if modo_analise == "Período Personalizado":
-        if data_cust_ini and data_cust_fim:
-            if data_cust_ini > data_cust_fim:
-                st.error("Data inicial não pode ser maior que data final!")
-                data_cust_ini, data_cust_fim = None, None
-            else:
-                st.info(f"Período ativo: {data_cust_ini.strftime('%d/%m/%Y')} a {data_cust_fim.strftime('%d/%m/%Y')}")
-    
-    # Processa dados com as configurações selecionadas
-    tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
-    df_resumo_temp, periodos_info = processar_mestre(
-        df_historico, 
-        str(data_ref), 
-        (modo_analise == "Período Personalizado"), 
-        data_cust_ini.isoformat() if data_cust_ini else None, 
-        data_cust_fim.isoformat() if data_cust_fim else None,
-        calcular_itd=calcular_itd,
-        tipo_semana=tipo_semana
-    )
     
     # Dados processados sem filtros
     
@@ -2151,8 +2347,11 @@ with tab_geral:
         if 'Retorno_Custom' in df_resumo_filtrado.columns:
             cols_view.insert(5, "Retorno_Custom")
             cols_view.insert(6, "Vol_Custom")
-        if data_cust_ini and data_cust_fim:
-            st.info(f"Exibindo dados personalizados de {data_cust_ini.strftime('%d/%m/%Y')} até {data_cust_fim.strftime('%d/%m/%Y')}")
+        data_ini_v, data_fim_v, is_valid, _ = validar_e_obter_periodo_custom()
+        if is_valid and data_ini_v and data_fim_v:
+            st.info(
+                f"Exibindo dados personalizados de {data_ini_v.strftime('%d/%m/%Y')} até {data_fim_v.strftime('%d/%m/%Y')}"
+            )
     
     if calcular_itd and 'Retorno_ITD' in df_resumo_filtrado.columns:
         cols_view.insert(5, "Retorno_ITD")
@@ -2249,6 +2448,14 @@ with tab_geral:
 with tab_cat:
     st.markdown("<h3 style='color: #189CD8;'><strong>Análise Detalhada por Categoria</strong></h3>", unsafe_allow_html=True)
     
+    # Info sobre configurações de período (sempre aponta para sidebar)
+    if st.session_state.get('modo_analise') == "Período Personalizado":
+        data_ini_v, data_fim_v, is_valid, msg_erro = validar_e_obter_periodo_custom()
+        if is_valid and data_ini_v and data_fim_v:
+            st.info(f"Período custom ativo: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')} | Configurável na barra lateral")
+        else:
+            st.warning(f"{msg_erro if msg_erro else 'Período custom inválido'} | Configure na barra lateral")
+    
     col_cat1, col_cat2, col_cat3 = st.columns([2, 2, 1])
     
     with col_cat1:
@@ -2261,55 +2468,61 @@ with tab_cat:
         st.session_state.categoria_selecionada = cat_select
     
     with col_cat2:
+        # Opções disponíveis dependem se período custom está calculado
+        opcoes_periodo = ["MTD", "YTD"]
+        # Sempre mostra "Personalizado" se o modo estiver ativo (mesmo que ainda inválido)
+        if st.session_state.get('modo_analise') == "Período Personalizado":
+            opcoes_periodo.append("Personalizado")
+        
+        # Ajusta index se Personalizado não estiver disponível
+        valor_anterior = st.session_state.periodo_categoria_grafico
+        if valor_anterior not in opcoes_periodo:
+            valor_anterior = "YTD"
+            st.session_state.periodo_categoria_grafico = valor_anterior
+        
         periodo_cat_graf = st.selectbox(
             "Período Selecionável:",
-            ["MTD", "YTD", "Personalizado"],
-            index=["MTD", "YTD", "Personalizado"].index(st.session_state.periodo_categoria_grafico) if st.session_state.periodo_categoria_grafico in ["MTD", "YTD", "Personalizado"] else 1,
-            key="periodo_cat_graf_widget"
+            opcoes_periodo,
+            index=opcoes_periodo.index(valor_anterior) if valor_anterior in opcoes_periodo else 1,
+            key="periodo_cat_graf_widget",
+            help="Escolha qual período exibir nos gráficos"
         )
         st.session_state.periodo_categoria_grafico = periodo_cat_graf
+        
+        # Feedback sobre período personalizado
+        if periodo_cat_graf == "Personalizado":
+            data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
+            if data_ini_v and data_fim_v:
+                st.caption(f"{data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')}")
     
     with col_cat3:
         incluir_bench = st.checkbox("Incluir CDI", value=True)
-    
-    # Se período personalizado, mostra campos de data
-    if periodo_cat_graf == "Personalizado":
-        col_d1, col_d2 = st.columns([1, 1])
-        
-        with col_d1:
-            data_ini_cat = st.date_input(
-                "Data Inicial",
-                value=st.session_state.data_cust_ini if st.session_state.data_cust_ini else datetime(2024, 1, 1),
-                format="DD/MM/YYYY",
-                key="data_ini_cat"
-            )
-            st.session_state.data_cust_ini = data_ini_cat
-        
-        with col_d2:
-            data_fim_cat = st.date_input(
-                "Data Final",
-                value=st.session_state.data_cust_fim if st.session_state.data_cust_fim else data_ref,
-                format="DD/MM/YYYY",
-                key="data_fim_cat"
-            )
-            st.session_state.data_cust_fim = data_fim_cat
-        
-        # Sinalização
-        if data_ini_cat and data_fim_cat:
-            if data_ini_cat > data_fim_cat:
-                st.error("Data inicial não pode ser maior que data final!")
-            else:
-                st.info(f"Período: {data_ini_cat.strftime('%d/%m/%Y')} a {data_fim_cat.strftime('%d/%m/%Y')}")
     
     st.markdown("---")
     
     # Usa df_resumo_temp da aba geral ou processa novamente se necessário
     try:
         df_cat = df_resumo_temp[df_resumo_temp['Categoria'] == cat_select].copy()
-    except:
-        # Fallback: processa dados se df_resumo_temp não existir
+    except (NameError, KeyError):
+        # Fallback: processa dados respeitando período personalizado se ativo
         tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
-        df_resumo_temp, _ = processar_mestre(df_historico, str(data_ref), False, None, None, False, tipo_semana)
+        usar_custom = (st.session_state.get('modo_analise') == "Período Personalizado") and st.session_state.get('custom_period_valid', False)
+        calcular_itd = (st.session_state.get('modo_analise') == "Com ITD (Inception to Date)")
+        
+        if usar_custom:
+            data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
+            df_resumo_temp, _ = processar_mestre(
+                df_historico, 
+                str(data_ref), 
+                True, 
+                data_ini_v.isoformat(), 
+                data_fim_v.isoformat(), 
+                calcular_itd,
+                tipo_semana
+            )
+        else:
+            df_resumo_temp, _ = processar_mestre(df_historico, str(data_ref), False, None, None, calcular_itd, tipo_semana)
+        
         df_cat = df_resumo_temp[df_resumo_temp['Categoria'] == cat_select].copy()
     
     # Adiciona última data disponível para cada ativo
@@ -2393,7 +2606,11 @@ with tab_cat:
     
     with col_ret2:
         st.markdown(f"#### {periodo_cat_graf}")
-        if not df_cat.empty and col_retorno_graf in df_cat.columns:
+        
+        # Verifica se a coluna existe
+        if periodo_cat_graf == "Personalizado" and not st.session_state.get('custom_period_valid', False):
+            st.warning("Configure o período personalizado na barra lateral primeiro.")
+        elif not df_cat.empty and col_retorno_graf in df_cat.columns:
             fig2 = px.bar(
                 df_cat.sort_values(col_retorno_graf), 
                 x=col_retorno_graf, y='Label_Ativo', 
@@ -2448,7 +2665,10 @@ with tab_cat:
     
     with col_vol2:
         st.markdown(f"#### {periodo_cat_graf}")
-        if not df_cat.empty and col_vol_graf in df_cat.columns:
+        
+        if periodo_cat_graf == "Personalizado" and not st.session_state.get('custom_period_valid', False):
+            st.warning("Configure o período personalizado na barra lateral primeiro.")
+        elif not df_cat.empty and col_vol_graf in df_cat.columns:
             fig_vol2 = px.bar(
                 df_cat.sort_values(col_vol_graf, ascending=False), 
                 x=col_vol_graf, y='Label_Ativo', 
@@ -2510,7 +2730,10 @@ with tab_cat:
             sharpe_col = "Sharpe_Custom"
         
         st.markdown(f"#### {periodo_cat_graf}")
-        if not df_cat.empty and sharpe_col in df_cat.columns:
+        
+        if periodo_cat_graf == "Personalizado" and not st.session_state.get('custom_period_valid', False):
+            st.warning("Configure o período personalizado na barra lateral primeiro.")
+        elif not df_cat.empty and sharpe_col in df_cat.columns:
             fig_sh2 = px.bar(
                 df_cat.sort_values(sharpe_col), 
                 x=sharpe_col, y='Label_Ativo', 
@@ -2535,6 +2758,15 @@ with tab_cat:
 with tab_graf:
     st.markdown("<h3 style='color: #189CD8;'><strong>Explorador Visual - Análise por Categorias</strong></h3>", unsafe_allow_html=True)
     
+    # Info: aponta para sidebar como fonte única
+    if st.session_state.get('modo_analise') == "Período Personalizado":
+        if st.session_state.get('custom_period_valid'):
+            data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
+            if data_ini_v and data_fim_v:
+                st.info(f"Período custom ativo: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')} | Configurável na barra lateral")
+        else:
+            st.warning("Período custom inválido | Configure na barra lateral")
+    
     # Layout principal: Seleção de categorias e período
     col_g1, col_g2 = st.columns([3, 1])
     
@@ -2550,11 +2782,24 @@ with tab_graf:
         st.session_state.categorias_selecionadas_grafico = categorias_sel if categorias_sel else st.session_state.categorias_selecionadas_grafico
     
     with col_g2:
+        # Opções disponíveis dependem se período custom está calculado
+        opcoes_periodo_graf = ["Semanal", "MTD", "YTD", "ITD"]
+        # Sempre mostra "Personalizado" se o modo estiver ativo (mesmo que ainda inválido)
+        if st.session_state.get('modo_analise') == "Período Personalizado":
+            opcoes_periodo_graf.append("Personalizado")
+        
+        # Ajusta index se Personalizado não estiver disponível
+        valor_anterior_graf = st.session_state.periodo_explorador
+        if valor_anterior_graf not in opcoes_periodo_graf:
+            valor_anterior_graf = "YTD"
+            st.session_state.periodo_explorador = valor_anterior_graf
+        
         periodo_expl = st.selectbox(
             "Período:",
-            ["Semanal", "MTD", "YTD", "ITD", "Personalizado"],
-            index=["Semanal", "MTD", "YTD", "ITD", "Personalizado"].index(st.session_state.periodo_explorador) if st.session_state.periodo_explorador in ["Semanal", "MTD", "YTD", "ITD", "Personalizado"] else 2,
-            key="periodo_expl_widget"
+            opcoes_periodo_graf,
+            index=opcoes_periodo_graf.index(valor_anterior_graf) if valor_anterior_graf in opcoes_periodo_graf else 2,
+            key="periodo_expl_widget",
+            help="Escolha o período para análise gráfica"
         )
         st.session_state.periodo_explorador = periodo_expl
     
@@ -2659,63 +2904,39 @@ with tab_graf:
     
     # Seção de datas e configurações
     if periodo_expl == "Personalizado":
-        col_d1, col_d2, col_d3 = st.columns([1, 1, 2])
+        # Usa os valores do session_state (definidos no controle geral)
+        data_ini_v, data_fim_v, is_valid, msg_erro = validar_e_obter_periodo_custom()
         
-        with col_d1:
-            d_graf_ini_input = st.date_input(
-                "Data Inicial", 
-                value=st.session_state.data_cust_ini if st.session_state.data_cust_ini else datetime(2024, 1, 1), 
-                format="DD/MM/YYYY",
-                key="d_ini_graf"
-            )
-            st.session_state.data_cust_ini = d_graf_ini_input
-        
-        with col_d2:
-            d_graf_fim_input = st.date_input(
-                "Data Final", 
-                value=st.session_state.data_cust_fim if st.session_state.data_cust_fim else data_ref, 
-                format="DD/MM/YYYY",
-                key="d_fim_graf"
-            )
-            st.session_state.data_cust_fim = d_graf_fim_input
-        
-        with col_d3:
-            base100 = st.checkbox("Base 100", value=True)
-        
-        # Converte date para datetime para compatibilidade
-        d_graf_ini = pd.to_datetime(d_graf_ini_input)
-        d_graf_fim = pd.to_datetime(d_graf_fim_input)
-        
-        # Sinalização
-        st.info(f"Período: {d_graf_ini.strftime('%d/%m/%Y')} a {d_graf_fim.strftime('%d/%m/%Y')}")
+        if not is_valid:
+            st.error(f"{msg_erro}. Configure o período na barra lateral primeiro.")
+            sel_assets = []  # Impede renderização de gráfico com período inválido
+        else:
+            st.info(f"Usando período definido: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')}")
+            # Converte para datetime
+            d_graf_ini = pd.to_datetime(data_ini_v)
+            d_graf_fim = pd.to_datetime(data_fim_v)
     else:
-        col_info, col_cb = st.columns([3, 1])
-        
-        with col_info:
-            # Calcula automaticamente baseado no período E no tipo_semana
-            tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
-            
-            if periodo_expl == "Semanal":
-                if tipo_semana == "Semana Passada":
-                    d_graf_ini = calcular_sexta_feira_semana_retrasada(data_ref)
-                    d_graf_fim = calcular_sexta_feira_semana_anterior(data_ref)
-                else:  # Semana Corrente
-                    d_graf_ini = calcular_sexta_feira_semana_anterior(data_ref)
-                    d_graf_fim = calcular_sexta_feira_semana_atual(data_ref)
-            elif periodo_expl == "MTD":
-                d_graf_ini = calcular_ultimo_dia_util_mes_anterior(data_ref)
-                d_graf_fim = data_ref
-            elif periodo_expl == "YTD":
-                d_graf_ini = calcular_ultimo_dia_util_ano_anterior(data_ref)
-                d_graf_fim = data_ref
-            else:  # ITD
-                d_graf_ini = df_historico['Data'].min()
-                d_graf_fim = data_ref
-            
-            st.info(f"Período: {d_graf_ini.strftime('%d/%m/%Y')} a {d_graf_fim.strftime('%d/%m/%Y')}")
-        
-        with col_cb:
-            base100 = st.checkbox("Base 100", value=True)
+        # Calcula automaticamente baseado no período E no tipo_semana
+        tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
+
+        if periodo_expl == "Semanal":
+            if tipo_semana == "Semana Passada":
+                d_graf_ini = calcular_sexta_feira_semana_retrasada(data_ref)
+                d_graf_fim = calcular_sexta_feira_semana_anterior(data_ref)
+            else:  # Semana Corrente
+                d_graf_ini = calcular_sexta_feira_semana_anterior(data_ref)
+                d_graf_fim = calcular_sexta_feira_semana_atual(data_ref)
+        elif periodo_expl == "MTD":
+            d_graf_ini = calcular_ultimo_dia_util_mes_anterior(data_ref)
+            d_graf_fim = data_ref
+        elif periodo_expl == "YTD":
+            d_graf_ini = calcular_ultimo_dia_util_ano_anterior(data_ref)
+            d_graf_fim = data_ref
+        else:  # ITD
+            d_graf_ini = df_historico['Data'].min()
+            d_graf_fim = data_ref
+
+        st.info(f"Período: {pd.to_datetime(d_graf_ini).strftime('%d/%m/%Y')} a {pd.to_datetime(d_graf_fim).strftime('%d/%m/%Y')}")
     
     st.markdown("---")
     
@@ -2723,22 +2944,101 @@ with tab_graf:
         # Garante que d_graf_ini e d_graf_fim sejam datetime (não date) para comparação com pandas
         d_graf_ini = pd.to_datetime(d_graf_ini)
         d_graf_fim = pd.to_datetime(d_graf_fim)
+
+        # Clampa ao range disponível do dataset (evita períodos vazios por datas fora do intervalo)
+        data_min = pd.to_datetime(df_historico['Data'].min())
+        data_max = pd.to_datetime(df_historico['Data'].max())
+        d_graf_ini_eff = max(d_graf_ini, data_min)
+        d_graf_fim_eff = min(d_graf_fim, data_max)
+
+        if d_graf_ini_eff != d_graf_ini or d_graf_fim_eff != d_graf_fim:
+            st.caption(
+                f"Período ajustado ao range de dados: {d_graf_ini_eff.strftime('%d/%m/%Y')} a {d_graf_fim_eff.strftime('%d/%m/%Y')}"
+            )
+
+        d_graf_ini, d_graf_fim = d_graf_ini_eff, d_graf_fim_eff
+
+        if d_graf_ini > d_graf_fim:
+            st.warning("Período selecionado não possui dados disponíveis.")
+            mask_g = pd.Series(False, index=df_historico.index)
+            df_g = pd.DataFrame()
+        else:
+            mask_g = (df_historico['Data'] >= d_graf_ini) & (df_historico['Data'] <= d_graf_fim)
+            df_g = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data').dropna(how='all')
         
-        mask_g = (df_historico['Data'] >= d_graf_ini) & (df_historico['Data'] <= d_graf_fim)
-        df_g = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data').dropna(how='all')
+        # ========== DEBUG VISUAL TEMPORÁRIO ==========
+        with st.expander("🔍 DEBUG: Diagnóstico do Filtro de Datas", expanded=True):
+            st.markdown("**Tipos de dados:**")
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.write(f"- `d_graf_ini`: `{d_graf_ini}` (tipo: `{type(d_graf_ini).__name__}`)")
+                st.write(f"- `d_graf_fim`: `{d_graf_fim}` (tipo: `{type(d_graf_fim).__name__}`)")
+            with col_d2:
+                st.write(f"- `df_historico['Data'].dtype`: `{df_historico['Data'].dtype}`")
+                st.write(f"- Primeira data: `{df_historico['Data'].iloc[0]}` (tipo: `{type(df_historico['Data'].iloc[0]).__name__}`)")
+            
+            st.markdown("**Resultado da máscara:**")
+            st.write(f"- Total de linhas no df_historico: `{len(df_historico)}`")
+            st.write(f"- Linhas após mask_g: `{mask_g.sum()}`")
+            st.write(f"- Linhas em df_g após dropna: `{len(df_g)}`")
+            st.write(f"- df_g está vazio? `{df_g.empty}`")
+            
+            st.markdown("**Ativos selecionados:**")
+            st.write(f"- `sel_assets`: `{sel_assets[:5]}...` ({len(sel_assets)} total)")
+            
+            if mask_g.sum() == 0:
+                st.error("⚠️ PROBLEMA: A máscara não encontrou nenhuma linha!")
+                st.markdown("**Comparação manual de datas:**")
+                sample_dates = df_historico['Data'].head(5).tolist()
+                st.write(f"- Primeiras 5 datas do df: `{sample_dates}`")
+                st.write(f"- Comparação d_graf_ini >= primeira data: `{d_graf_ini >= sample_dates[0] if sample_dates else 'N/A'}`")
+                
+                # Testa comparação explícita
+                try:
+                    test_compare = df_historico['Data'].iloc[0] >= d_graf_ini
+                    st.write(f"- Teste: `df['Data'].iloc[0] >= d_graf_ini` = `{test_compare}`")
+                except Exception as e:
+                    st.error(f"- Erro na comparação: `{e}`")
+        # ========== FIM DEBUG VISUAL ==========
+        
+        # Salva info de debug
+        if 'debug_info' not in st.session_state:
+            st.session_state.debug_info = {}
+        st.session_state.debug_info['graficos_filtro'] = {
+            'periodo': f"{d_graf_ini} a {d_graf_fim}",
+            'ativos_selecionados': len(sel_assets),
+            'linhas_apos_mascara': int(mask_g.sum()) if hasattr(mask_g, 'sum') else 0,
+            'linhas_apos_dropna': len(df_g),
+            'df_vazio': df_g.empty,
+            'sel_assets': sel_assets[:5] if len(sel_assets) > 5 else sel_assets  # Primeiros 5 para debug
+        }
         
         if not df_g.empty:
-            if base100:
-                df_g = (1 + df_g).cumprod()
-                df_g = (df_g / df_g.iloc[0]) * 100
-                titulo = "Evolução Normalizada (Base 100)"
-                y_tickformat = ",.2f"
-                y_titulo = "Índice (Base 100)"
-            else:
-                df_g = (1 + df_g).cumprod() - 1
-                titulo = "Retorno Acumulado"
-                y_tickformat = ".2%"
-                y_titulo = "Retorno Acumulado"
+            # DEBUG: Estado antes da transformação
+            df_g_antes = df_g.copy()
+            
+            df_g = calcular_retorno_acumulado_robusto(df_g)
+            # Remove linhas onde TODOS os ativos são NaN (antes do inception)
+            df_g = df_g.dropna(how='all')
+            
+            # DEBUG: Adiciona ao expander de debug
+            with st.expander("🔍 DEBUG 2: Após calcular_retorno_acumulado_robusto", expanded=True):
+                st.write(f"- Linhas ANTES da transformação: `{len(df_g_antes)}`")
+                st.write(f"- Linhas APÓS calcular_retorno_acumulado_robusto + dropna: `{len(df_g)}`")
+                st.write(f"- df_g está vazio após transformação? `{df_g.empty}`")
+                if not df_g.empty:
+                    st.write(f"- Primeiras linhas de df_g:")
+                    st.dataframe(df_g.head(3))
+                    st.write(f"- Últimas linhas de df_g:")
+                    st.dataframe(df_g.tail(3))
+                else:
+                    st.error("⚠️ df_g ficou VAZIO após a transformação!")
+                    st.write("Conteúdo de df_g_antes (retornos diários):")
+                    st.dataframe(df_g_antes)
+            
+            titulo = "Evolução do Retorno Acumulado no Período"
+            y_tickformat = ".2%"
+            y_titulo = "Retorno Acumulado"
             
             fig_evolucao = px.line(
                 df_g,
