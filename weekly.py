@@ -754,6 +754,19 @@ st.markdown("""
         background-color: #D4EDDA !important;
         border-left: 4px solid #28A745 !important;
     }
+    
+    /* Date picker calendars - fundo branco com 80% opacidade */
+    [data-baseweb="calendar"],
+    [data-baseweb="popover"],
+    .stDateInput [data-baseweb="popover"] {
+        background-color: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(10px) !important;
+    }
+    
+    [data-baseweb="calendar"] button,
+    [data-baseweb="calendar"] div {
+        background-color: transparent !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1663,10 +1676,10 @@ with st.sidebar:
         
         # Usa form para permitir submit com Enter
         with st.form(key="form_carregar_dados"):
-            api_user = st.text_input("Usuário", value=default_user, help="Configure em .streamlit/secrets.toml para maior segurança", key="api_user_input")
-            api_pass = st.text_input("Senha", type="password", value=default_pass, help="Não versione credenciais!", key="api_pass_input")
+            api_user = st.text_input("Usuário", value=default_user, help="Login do Comdinheiro (diferencia maiúsculas de minúsculas)", key="api_user_input")
+            api_pass = st.text_input("Senha", type="password", value=default_pass, help="Senha do Comdinheiro (diferencia maiúsculas de minúsculas)", key="api_pass_input")
             
-            st.caption("Período de Extração:")
+            st.caption("Período de Extração dos dados:")
             data_ini_api = st.date_input("Início", value=datetime(2022, 12, 30), format="DD/MM/YYYY", help="Data inicial para extração dos dados")
             st.caption("Fim: último dia útil disponível", help="A data final é calculada automaticamente como o último dia útil anterior à data de hoje")
             
@@ -2085,8 +2098,8 @@ with tab_geral:
         df_historico, 
         str(data_ref), 
         (modo_analise == "Período Personalizado"), 
-        str(data_cust_ini), 
-        str(data_cust_fim),
+        data_cust_ini.isoformat() if data_cust_ini else None, 
+        data_cust_fim.isoformat() if data_cust_fim else None,
         calcular_itd=calcular_itd,
         tipo_semana=tipo_semana
     )
@@ -2669,8 +2682,9 @@ with tab_graf:
         with col_d3:
             base100 = st.checkbox("Base 100", value=True)
         
-        d_graf_ini = d_graf_ini_input
-        d_graf_fim = d_graf_fim_input
+        # Converte date para datetime para compatibilidade
+        d_graf_ini = pd.to_datetime(d_graf_ini_input)
+        d_graf_fim = pd.to_datetime(d_graf_fim_input)
         
         # Sinalização
         st.info(f"Período: {d_graf_ini.strftime('%d/%m/%Y')} a {d_graf_fim.strftime('%d/%m/%Y')}")
@@ -2706,7 +2720,8 @@ with tab_graf:
     st.markdown("---")
     
     if sel_assets:
-        mask_g = (df_historico['Data'] >= pd.to_datetime(d_graf_ini)) & (df_historico['Data'] <= pd.to_datetime(d_graf_fim))
+        # d_graf_ini e d_graf_fim já são datetime (convertidos acima ou retornados por funções de cálculo)
+        mask_g = (df_historico['Data'] >= d_graf_ini) & (df_historico['Data'] <= d_graf_fim)
         df_g = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data').dropna(how='all')
         
         if not df_g.empty:
