@@ -2720,7 +2720,10 @@ with tab_graf:
     st.markdown("---")
     
     if sel_assets:
-        # d_graf_ini e d_graf_fim já são datetime (convertidos acima ou retornados por funções de cálculo)
+        # Garante que d_graf_ini e d_graf_fim sejam datetime (não date) para comparação com pandas
+        d_graf_ini = pd.to_datetime(d_graf_ini)
+        d_graf_fim = pd.to_datetime(d_graf_fim)
+        
         mask_g = (df_historico['Data'] >= d_graf_ini) & (df_historico['Data'] <= d_graf_fim)
         df_g = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data').dropna(how='all')
         
