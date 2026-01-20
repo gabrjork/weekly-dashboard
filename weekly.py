@@ -1511,7 +1511,11 @@ def calcular_retornos_mensais(df, ativo):
     return heatmap_data
 
 def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, calcular_itd=False, tipo_semana="Semana Passada"):
-    data_ref = pd.to_datetime(data_ref_analise)
+    # Se usar período customizado, a data de referência deve ser a data final do período custom
+    if usar_custom and d_custom_fim:
+        data_ref = pd.to_datetime(d_custom_fim)
+    else:
+        data_ref = pd.to_datetime(data_ref_analise)
     
     # Filtra dados até a data de referência
     df_ate_ref = df[df['Data'] <= data_ref]
