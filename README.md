@@ -2,11 +2,6 @@
 
 Dashboard interativo para análise de performance de carteiras de investimento.
 
-## 🚀 Deploy no Streamlit Community Cloud
-
-### Pré-requisitos
-1. Conta no GitHub
-2. Conta no [Streamlit Community Cloud](https://streamlit.io/cloud)
 
 ### Passo a Passo
 
