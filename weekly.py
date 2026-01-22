@@ -1407,20 +1407,20 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
     if df_periodo.empty: return pd.DataFrame()
     
     retorno_cdi = df_periodo['CDI'] if 'CDI' in df_periodo.columns else None
-    
+
     res = []
     for col in df_periodo.columns:
         # Processa CDI separadamente (sem Sharpe contra si mesmo)
         if col == 'CDI':
             serie_cdi = df_periodo[col].dropna()
-            if len(serie_cdi) >= 2:
+            if len(serie_cdi) >= 252:
                 ret_acum_cdi = np.prod(1 + serie_cdi[~serie_cdi.isna()]) - 1
-                vol_cdi = serie_cdi.std(skipna=True) * np.sqrt(252)
+                vol_cdi = serie_cdi.rolling(window=252).std().iloc[-1] * np.sqrt(252)
                 cum_cdi = (1 + serie_cdi).cumprod(skipna=True)
                 peak_cdi = cum_cdi.cummax(skipna=True)
                 dd_cdi = (cum_cdi - peak_cdi) / peak_cdi
                 max_dd_cdi = dd_cdi.dropna().min() if len(dd_cdi.dropna()) > 0 else 0
-                
+
                 res.append({
                     "Ativo": col,
                     f"Retorno_{periodo_nome}": ret_acum_cdi,
@@ -1429,41 +1429,39 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
                     f"MaxDD_{periodo_nome}": max_dd_cdi
                 })
             continue
-        
+
         # ALINHAMENTO COM R: Remove NAs da série (equivalente a na.rm = TRUE)
         serie = df_periodo[col].dropna()
-        
+
         # Validação extra: verifica se ainda há NaN após dropna
         if serie.isna().any():
             serie = serie.dropna()
-        
-        if len(serie) < 2: continue
-        
+
+        if len(serie) < 252: continue
+
         # ALINHAMENTO COM R: prod(..., na.rm = TRUE)
         # Garante que não há NaN no cálculo
         ret_acum = np.prod(1 + serie[~serie.isna()]) - 1
-        
-        # ALINHAMENTO COM R: sd(..., na.rm = TRUE) * sqrt(252)
-        # pandas .std() já ignora NaN por padrão, mas garantimos aqui
-        vol = serie.std(skipna=True) * np.sqrt(252)
-        
+
+        # Volatilidade rolling 252 dias anualizada
+        vol = serie.rolling(window=252).std().iloc[-1] * np.sqrt(252)
+
         sharpe = 0
         if retorno_cdi is not None:
             cdi_aligned = retorno_cdi.loc[serie.index]
             excesso = serie - cdi_aligned
             # ALINHAMENTO COM R: Remove NAs do excesso antes de calcular
             excesso = excesso.dropna()
-            if len(excesso) > 0 and excesso.std(skipna=True) > 0:
-                # ALINHAMENTO COM R: mean(..., na.rm = TRUE) e sd(..., na.rm = TRUE)
-                sharpe = (excesso.mean(skipna=True) * 252) / (excesso.std(skipna=True) * np.sqrt(252))
-        
+            if len(excesso) >= 252 and excesso.std(skipna=True) > 0:
+                sharpe = (excesso.mean(skipna=True) * 252) / (excesso.rolling(window=252).std().iloc[-1] * np.sqrt(252))
+
         # ALINHAMENTO COM R: calc_mdd com na.rm = TRUE
         cum = (1 + serie).cumprod(skipna=True)
         peak = cum.cummax(skipna=True)
         dd = (cum - peak) / peak
         # Remove NaNs antes de calcular o mínimo (equivalente a na.rm = TRUE)
         max_dd = dd.dropna().min() if len(dd.dropna()) > 0 else 0
-        
+
         res.append({
             "Ativo": col,
             f"Retorno_{periodo_nome}": ret_acum,
@@ -1471,7 +1469,7 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
             f"Sharpe_{periodo_nome}": sharpe,
             f"MaxDD_{periodo_nome}": max_dd
         })
-        
+
     return pd.DataFrame(res)
 
 def calcular_retornos_mensais(df, ativo):
@@ -2636,21 +2634,22 @@ with tab_cat:
     # SEÇÃO 2: VOLATILIDADE
     st.markdown("---")
     st.markdown("### Volatilidade")
-    col_vol1, col_vol2 = st.columns(2)
-    
+    col_vol1, col_vol2, col_vol3 = st.columns(3)
+
+    # Volatilidade Semanal (mantém para referência)
     with col_vol1:
         st.markdown("#### Semanal")
         if not df_cat.empty and 'Vol_Semana' in df_cat.columns:
             fig_vol1 = px.bar(
-                df_cat.sort_values('Vol_Semana', ascending=False), 
-                x='Vol_Semana', y='Label_Ativo', 
-                orientation='h', 
+                df_cat.sort_values('Vol_Semana', ascending=False),
+                x='Vol_Semana', y='Label_Ativo',
+                orientation='h',
                 text_auto='.2%',
                 color_discrete_sequence=['#FFC107'],
                 template='plotly_white'
             )
             fig_vol1.update_layout(
-                xaxis_tickformat='.0%', 
+                xaxis_tickformat='.0%',
                 height=max(400, len(df_cat) * 40),
                 showlegend=False,
                 paper_bgcolor='white',
@@ -2662,23 +2661,23 @@ with tab_cat:
             st.plotly_chart(fig_vol1, use_container_width=True, theme="streamlit")
         else:
             st.warning("Sem dados de volatilidade")
-    
+
+    # Volatilidade Dinâmica (conforme período selecionado)
     with col_vol2:
         st.markdown(f"#### {periodo_cat_graf}")
-        
         if periodo_cat_graf == "Personalizado" and not st.session_state.get('custom_period_valid', False):
             st.warning("Configure o período personalizado na barra lateral primeiro.")
         elif not df_cat.empty and col_vol_graf in df_cat.columns:
             fig_vol2 = px.bar(
-                df_cat.sort_values(col_vol_graf, ascending=False), 
-                x=col_vol_graf, y='Label_Ativo', 
-                orientation='h', 
+                df_cat.sort_values(col_vol_graf, ascending=False),
+                x=col_vol_graf, y='Label_Ativo',
+                orientation='h',
                 text_auto='.2%',
                 color_discrete_sequence=['#FF6B6B'],
                 template='plotly_white'
             )
             fig_vol2.update_layout(
-                xaxis_tickformat='.0%', 
+                xaxis_tickformat='.0%',
                 height=max(400, len(df_cat) * 40),
                 showlegend=False,
                 paper_bgcolor='white',
@@ -2690,6 +2689,50 @@ with tab_cat:
             st.plotly_chart(fig_vol2, use_container_width=True, theme="streamlit")
         else:
             st.warning("Sem dados de volatilidade")
+
+    # Volatilidade Histórica dos últimos 252 dias (VolH a/a)
+    with col_vol3:
+        st.markdown("#### VolH (a/a) - 252 dias")
+        # Cálculo da volatilidade rolling 252 dias para cada ativo
+        if not df_historico.empty and sel_assets:
+            volh_252 = {}
+            for ativo in sel_assets:
+                serie = df_historico[ativo].dropna()
+                # Rolling window de 252 dias, anualizada
+                vol_serie = serie.rolling(window=252).std() * np.sqrt(252)
+                # Pega o último valor disponível (volatilidade dos últimos 252 dias)
+                volh_252[ativo] = vol_serie.iloc[-1] if len(vol_serie) >= 252 else np.nan
+            # Monta DataFrame para gráfico
+            df_volh = pd.DataFrame({
+                'Ativo': list(volh_252.keys()),
+                'VolH_a_a': list(volh_252.values())
+            })
+            df_volh = df_volh.dropna()
+            if not df_volh.empty:
+                fig_volh = px.bar(
+                    df_volh.sort_values('VolH_a_a', ascending=False),
+                    x='VolH_a_a', y='Ativo',
+                    orientation='h',
+                    text_auto='.2%',
+                    color_discrete_sequence=['#36B37E'],
+                    template='plotly_white',
+                    labels={'VolH_a_a': 'VolH (a/a)'}
+                )
+                fig_volh.update_layout(
+                    xaxis_tickformat='.0%',
+                    height=max(400, len(df_volh) * 40),
+                    showlegend=False,
+                    paper_bgcolor='white',
+                    plot_bgcolor='white',
+                    font=dict(color='#2C3E50', size=11),
+                    xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
+                    yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
+                )
+                st.plotly_chart(fig_volh, use_container_width=True, theme="streamlit")
+            else:
+                st.warning("Sem dados suficientes para calcular VolH (a/a) - mínimo 252 dias de histórico por ativo.")
+        else:
+            st.warning("Sem dados de volatilidade histórica (252 dias)")
     
     # SEÇÃO 3: SHARPE RATIO
     st.markdown("---")
@@ -3018,8 +3061,8 @@ with tab_graf:
             df_g_antes = df_g.copy()
             
             df_g = calcular_retorno_acumulado_robusto(df_g)
-            # Remove linhas onde TODOS os ativos são NaN (antes do inception)
-            df_g = df_g.dropna(how='all')
+            # NÃO remove linhas com NaN - Plotly sabe lidar com isso
+            # Cada ativo vai aparecer no gráfico a partir de quando tiver dados
             
             # DEBUG: Adiciona ao expander de debug
             with st.expander("🔍 DEBUG 2: Após calcular_retorno_acumulado_robusto", expanded=True):
@@ -3040,8 +3083,32 @@ with tab_graf:
             y_tickformat = ".2%"
             y_titulo = "Retorno Acumulado"
             
+            # CORREÇÃO: Reset index e passa explicitamente x='Data' para Plotly
+            # Isso garante que o eixo X seja interpretado corretamente como datetime
+            df_g_plot = df_g.reset_index()
+            
+            # DEBUG 3: O que está sendo passado para px.line
+            with st.expander("🔍 DEBUG 3: Dados passados para px.line", expanded=True):
+                st.write(f"- Shape de df_g_plot: `{df_g_plot.shape}`")
+                st.write(f"- Colunas: `{list(df_g_plot.columns)}`")
+                st.write(f"- Tipo da coluna Data: `{df_g_plot['Data'].dtype}`")
+                st.write(f"- Primeira data: `{df_g_plot['Data'].iloc[0]}` | Última: `{df_g_plot['Data'].iloc[-1]}`")
+                y_cols = [col for col in df_g_plot.columns if col != 'Data']
+                st.write(f"- Colunas Y: `{y_cols[:5]}...` ({len(y_cols)} total)")
+                
+                # Verifica se há valores válidos
+                for col in y_cols[:3]:
+                    valid_count = df_g_plot[col].notna().sum()
+                    sample_vals = df_g_plot[col].dropna().head(3).tolist()
+                    st.write(f"- Coluna `{col}`: {valid_count} valores válidos, amostra: `{sample_vals}`")
+                
+                st.write("**Amostra dos dados (primeiras 5 linhas):**")
+                st.dataframe(df_g_plot.head())
+            
             fig_evolucao = px.line(
-                df_g,
+                df_g_plot,
+                x='Data',
+                y=[col for col in df_g_plot.columns if col != 'Data'],
                 title=titulo,
                 labels={'value': 'Performance', 'Data': 'Data', 'variable': 'Ativo'},
                 template='plotly_white'
@@ -3076,13 +3143,17 @@ with tab_graf:
                 st.markdown("#### Evolução da Volatilidade no Período")
                 # Calcula volatilidade acumulada desde o início do período
                 df_g_raw = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data')
-                # Remove linhas com todos NaN
-                df_g_raw = df_g_raw.dropna(how='all')
+                # NÃO remove linhas com NaN - cada ativo aparece quando tiver dados
                 # Calcula volatilidade expandindo (desde o início até cada dia)
                 df_vol_rolling = df_g_raw.expanding(min_periods=2).std() * np.sqrt(252)
                 
+                # Reset index para passar x='Data' explicitamente
+                df_vol_plot = df_vol_rolling.reset_index()
+                
                 fig_vol = px.line(
-                    df_vol_rolling,
+                    df_vol_plot,
+                    x='Data',
+                    y=[col for col in df_vol_plot.columns if col != 'Data'],
                     labels={'value': 'Volatilidade Anualizada', 'Data': 'Data', 'variable': 'Ativo'},
                     template='plotly_white'
                 )
@@ -3111,8 +3182,13 @@ with tab_graf:
                 df_cumret = (1 + df_g_raw).cumprod()
                 df_drawdown = (df_cumret / df_cumret.cummax() - 1)
                 
+                # Reset index para passar x='Data' explicitamente
+                df_dd_plot = df_drawdown.reset_index()
+                
                 fig_dd = px.line(
-                    df_drawdown,
+                    df_dd_plot,
+                    x='Data',
+                    y=[col for col in df_dd_plot.columns if col != 'Data'],
                     labels={'value': 'Drawdown', 'Data': 'Data', 'variable': 'Ativo'},
                     template='plotly_white'
                 )
