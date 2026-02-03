@@ -1454,8 +1454,9 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
             # ALINHAMENTO COM R: Remove NAs do excesso antes de calcular
             excesso = excesso.dropna()
             if len(excesso) > 0 and excesso.std(skipna=True) > 0:
-                # ALINHAMENTO COM R: mean(..., na.rm = TRUE) e sd(..., na.rm = TRUE)
-                sharpe = (excesso.mean(skipna=True) * 252) / (excesso.std(skipna=True) * np.sqrt(252))
+                # Sharpe Ratio anualizado corretamente: (retorno_excesso_médio / std_excesso) * sqrt(252)
+                # Não devemos multiplicar o numerador por 252 E o denominador por sqrt(252)
+                sharpe = (excesso.mean(skipna=True) / excesso.std(skipna=True)) * np.sqrt(252)
         
         # ALINHAMENTO COM R: calc_mdd com na.rm = TRUE
         cum = (1 + serie).cumprod(skipna=True)
