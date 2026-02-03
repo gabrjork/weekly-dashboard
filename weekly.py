@@ -1454,9 +1454,10 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
             # ALINHAMENTO COM R: Remove NAs do excesso antes de calcular
             excesso = excesso.dropna()
             if len(excesso) > 0 and excesso.std(skipna=True) > 0:
-                # Sharpe Ratio anualizado corretamente: (retorno_excesso_médio / std_excesso) * sqrt(252)
-                # Não devemos multiplicar o numerador por 252 E o denominador por sqrt(252)
-                sharpe = (excesso.mean(skipna=True) / excesso.std(skipna=True)) * np.sqrt(252)
+                # Sharpe Ratio anualizado: retorno anualizado / volatilidade anualizada
+                # Retorno anualizado = retorno_médio_diário * 252
+                # Volatilidade anualizada = std_diário * sqrt(252)
+                sharpe = (excesso.mean(skipna=True) * 252) / (excesso.std(skipna=True) * np.sqrt(252))
         
         # ALINHAMENTO COM R: calc_mdd com na.rm = TRUE
         cum = (1 + serie).cumprod(skipna=True)
@@ -2967,75 +2968,10 @@ with tab_graf:
             mask_g = (df_historico['Data'] >= d_graf_ini) & (df_historico['Data'] <= d_graf_fim)
             df_g = df_historico.loc[mask_g, ['Data'] + sel_assets].set_index('Data').dropna(how='all')
         
-        # ========== DEBUG VISUAL TEMPORÁRIO ==========
-        with st.expander("🔍 DEBUG: Diagnóstico do Filtro de Datas", expanded=True):
-            st.markdown("**Tipos de dados:**")
-            col_d1, col_d2 = st.columns(2)
-            with col_d1:
-                st.write(f"- `d_graf_ini`: `{d_graf_ini}` (tipo: `{type(d_graf_ini).__name__}`)")
-                st.write(f"- `d_graf_fim`: `{d_graf_fim}` (tipo: `{type(d_graf_fim).__name__}`)")
-            with col_d2:
-                st.write(f"- `df_historico['Data'].dtype`: `{df_historico['Data'].dtype}`")
-                st.write(f"- Primeira data: `{df_historico['Data'].iloc[0]}` (tipo: `{type(df_historico['Data'].iloc[0]).__name__}`)")
-            
-            st.markdown("**Resultado da máscara:**")
-            st.write(f"- Total de linhas no df_historico: `{len(df_historico)}`")
-            st.write(f"- Linhas após mask_g: `{mask_g.sum()}`")
-            st.write(f"- Linhas em df_g após dropna: `{len(df_g)}`")
-            st.write(f"- df_g está vazio? `{df_g.empty}`")
-            
-            st.markdown("**Ativos selecionados:**")
-            st.write(f"- `sel_assets`: `{sel_assets[:5]}...` ({len(sel_assets)} total)")
-            
-            if mask_g.sum() == 0:
-                st.error("⚠️ PROBLEMA: A máscara não encontrou nenhuma linha!")
-                st.markdown("**Comparação manual de datas:**")
-                sample_dates = df_historico['Data'].head(5).tolist()
-                st.write(f"- Primeiras 5 datas do df: `{sample_dates}`")
-                st.write(f"- Comparação d_graf_ini >= primeira data: `{d_graf_ini >= sample_dates[0] if sample_dates else 'N/A'}`")
-                
-                # Testa comparação explícita
-                try:
-                    test_compare = df_historico['Data'].iloc[0] >= d_graf_ini
-                    st.write(f"- Teste: `df['Data'].iloc[0] >= d_graf_ini` = `{test_compare}`")
-                except Exception as e:
-                    st.error(f"- Erro na comparação: `{e}`")
-        # ========== FIM DEBUG VISUAL ==========
-        
-        # Salva info de debug
-        if 'debug_info' not in st.session_state:
-            st.session_state.debug_info = {}
-        st.session_state.debug_info['graficos_filtro'] = {
-            'periodo': f"{d_graf_ini} a {d_graf_fim}",
-            'ativos_selecionados': len(sel_assets),
-            'linhas_apos_mascara': int(mask_g.sum()) if hasattr(mask_g, 'sum') else 0,
-            'linhas_apos_dropna': len(df_g),
-            'df_vazio': df_g.empty,
-            'sel_assets': sel_assets[:5] if len(sel_assets) > 5 else sel_assets  # Primeiros 5 para debug
-        }
-        
         if not df_g.empty:
-            # DEBUG: Estado antes da transformação
-            df_g_antes = df_g.copy()
-            
             df_g = calcular_retorno_acumulado_robusto(df_g)
             # Remove linhas onde TODOS os ativos são NaN (antes do inception)
             df_g = df_g.dropna(how='all')
-            
-            # DEBUG: Adiciona ao expander de debug
-            with st.expander("🔍 DEBUG 2: Após calcular_retorno_acumulado_robusto", expanded=True):
-                st.write(f"- Linhas ANTES da transformação: `{len(df_g_antes)}`")
-                st.write(f"- Linhas APÓS calcular_retorno_acumulado_robusto + dropna: `{len(df_g)}`")
-                st.write(f"- df_g está vazio após transformação? `{df_g.empty}`")
-                if not df_g.empty:
-                    st.write(f"- Primeiras linhas de df_g:")
-                    st.dataframe(df_g.head(3))
-                    st.write(f"- Últimas linhas de df_g:")
-                    st.dataframe(df_g.tail(3))
-                else:
-                    st.error("⚠️ df_g ficou VAZIO após a transformação!")
-                    st.write("Conteúdo de df_g_antes (retornos diários):")
-                    st.dataframe(df_g_antes)
             
             titulo = "Evolução do Retorno Acumulado no Período"
             y_tickformat = ".2%"
