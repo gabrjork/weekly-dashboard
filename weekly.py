@@ -1446,11 +1446,19 @@ def calcular_metricas(df, periodo_nome, data_inicio, data_fim):
             excesso = serie - cdi_aligned
             # ALINHAMENTO COM R: Remove NAs do excesso antes de calcular
             excesso = excesso.dropna()
-            if len(excesso) > 0 and excesso.std(skipna=True) > 0:
+            
+            # Validações robustas para evitar Sharpe absurdo:
+            # 1. Mínimo de 20 observações para cálculo confiável
+            # 2. Volatilidade mínima de 0.01% a.a. (0.0001 em decimal)
+            # 3. Cap no Sharpe entre -10 e 10
+            vol_excesso = excesso.std(skipna=True)
+            if len(excesso) >= 20 and vol_excesso > 0.0001 / np.sqrt(252):
                 # Sharpe Ratio anualizado: retorno anualizado / volatilidade anualizada
                 # Retorno anualizado = retorno_médio_diário * 252
                 # Volatilidade anualizada = std_diário * sqrt(252)
-                sharpe = (excesso.mean(skipna=True) * 252) / (excesso.std(skipna=True) * np.sqrt(252))
+                sharpe_calc = (excesso.mean(skipna=True) * 252) / (vol_excesso * np.sqrt(252))
+                # Limita Sharpe entre -10 e 10 (valores fora disso são irrealistas)
+                sharpe = np.clip(sharpe_calc, -10, 10)
         
         # ALINHAMENTO COM R: calc_mdd com na.rm = TRUE
         cum = (1 + serie).cumprod(skipna=True)
@@ -2884,6 +2892,10 @@ with tab_graf:
                     st.success(f"Usando {len(sel_assets)} ativos selecionados manualmente")
     
     # Seção de datas e configurações
+    # Inicializa variáveis para evitar casos não definidos
+    d_graf_ini = None
+    d_graf_fim = None
+    
     if periodo_expl == "Personalizado":
         # Usa os valores do session_state (definidos no controle geral)
         data_ini_v, data_fim_v, is_valid, msg_erro = validar_e_obter_periodo_custom()
@@ -2892,9 +2904,9 @@ with tab_graf:
             st.error(f"{msg_erro}. Configure o período na barra lateral primeiro.")
             sel_assets = []  # Impede renderização de gráfico com período inválido
         else:
-            # Converte para datetime
-            d_graf_ini = pd.to_datetime(data_ini_v)
-            d_graf_fim = pd.to_datetime(data_fim_v)
+            # Converte para datetime sem timezone (naive)
+            d_graf_ini = pd.Timestamp(data_ini_v)
+            d_graf_fim = pd.Timestamp(data_fim_v)
     else:
         # Calcula automaticamente baseado no período E no tipo_semana
         tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
@@ -2915,7 +2927,7 @@ with tab_graf:
     
     st.markdown("---")
     
-    if sel_assets:
+    if sel_assets and d_graf_ini is not None and d_graf_fim is not None:
         # Garante que d_graf_ini e d_graf_fim sejam datetime (não date) para comparação com pandas
         d_graf_ini = pd.to_datetime(d_graf_ini)
         d_graf_fim = pd.to_datetime(d_graf_fim)
@@ -2943,13 +2955,17 @@ with tab_graf:
         
         if not df_g.empty:
             df_g = calcular_retorno_acumulado_robusto(df_g)
-            # Remove linhas onde TODOS os ativos são NaN (antes do inception)
             df_g = df_g.dropna(how='all')
             
-            # Reordena colunas do maior para o menor valor (última linha) para ordenar hover
-            ultima_linha = df_g.iloc[-1]
-            colunas_ordenadas = ultima_linha.sort_values(ascending=False).index.tolist()
-            df_g = df_g[colunas_ordenadas]
+            if df_g.empty:
+                st.info("Sem dados suficientes para o período selecionado.")
+            elif not isinstance(df_g.index, pd.DatetimeIndex):
+                st.error(f"Erro: Índice não é datetime. Recarregue os dados.")
+            else:
+                # Reordena colunas
+                ultima_linha = df_g.iloc[-1]
+                colunas_ordenadas = ultima_linha.sort_values(ascending=False).index.tolist()
+                df_g = df_g[colunas_ordenadas]
             
             titulo = "Evolução do Retorno Acumulado no Período"
             y_tickformat = ".2%"
@@ -3063,6 +3079,8 @@ with tab_graf:
                 st.plotly_chart(fig_dd, use_container_width=True, theme="streamlit")
         else:
             st.info("Sem dados para o período selecionado.")
+    elif sel_assets and (d_graf_ini is None or d_graf_fim is None):
+        st.warning("Período inválido. Verifique as configurações de data na barra lateral.")
     else:
         st.info("Selecione pelo menos um ativo para visualizar.")
 
