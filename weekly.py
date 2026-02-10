@@ -1646,10 +1646,25 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
     
     # Para a data final da semana, usa o menor entre data_ref e data_semana_fim
     data_semana_ref = min(data_ref, data_semana_fim)
+    
+    # Período de 252 dias úteis (aproximadamente 1 ano)
+    # Encontra a data 252 dias úteis antes da data_ref
+    datas_disponiveis_sorted = df_ate_ref['Data'].sort_values().unique()
+    if len(datas_disponiveis_sorted) > 0:
+        idx_data_ref = np.searchsorted(datas_disponiveis_sorted, data_ref, side='right') - 1
+        if idx_data_ref >= 0:
+            # Retrocede 252 dias úteis (ou o máximo disponível)
+            idx_inicio_252d = max(0, idx_data_ref - 252)
+            inicio_252d = datas_disponiveis_sorted[idx_inicio_252d]
+        else:
+            inicio_252d = datas_disponiveis_sorted[0]
+    else:
+        inicio_252d = data_ref - timedelta(days=365)  # Fallback
         
     df_ytd = calcular_metricas(df, "YTD", inicio_ano, data_ref)
     df_mtd = calcular_metricas(df, "MTD", inicio_mtd, data_ref)
     df_sem = calcular_metricas(df, "Semana", data_semana, data_semana_ref)
+    df_252d = calcular_metricas(df, "252d", inicio_252d, data_ref)
     
     df_cust = pd.DataFrame()
     if usar_custom and d_custom_ini and d_custom_fim:
@@ -1670,6 +1685,7 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
     if not mestre.empty:
         if not df_mtd.empty: mestre = mestre.merge(df_mtd[['Ativo', 'Retorno_MTD']], on='Ativo', how='left')
         if not df_sem.empty: mestre = mestre.merge(df_sem[['Ativo', 'Retorno_Semana']], on='Ativo', how='left')
+        if not df_252d.empty: mestre = mestre.merge(df_252d[['Ativo', 'Vol_252d', 'Sharpe_252d', 'MaxDD_252d']], on='Ativo', how='left')
         if not df_cust.empty: mestre = mestre.merge(df_cust[['Ativo', 'Retorno_Custom', 'Vol_Custom']], on='Ativo', how='left')
     
     # Adiciona categoria primeiro
@@ -1694,7 +1710,9 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         'mtd_inicio': inicio_mtd,
         'mtd_fim': data_ref,
         'ytd_inicio': inicio_ano,
-        'ytd_fim': data_ref
+        'ytd_fim': data_ref,
+        '252d_inicio': inicio_252d,
+        '252d_fim': data_ref
     }
     
     # Armazena info de períodos para debug
@@ -2177,8 +2195,8 @@ if not df_resumo.empty:
         if ativo_key in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == ativo_key].iloc[0]
             ret_ytd = row['Retorno_YTD']
-            vol_ytd = row['Vol_YTD'] if 'Vol_YTD' in row else 0
-            col.metric(nome_display, f"{ret_ytd:.2%}", f"Vol: {vol_ytd:.2%}")
+            vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
+            col.metric(nome_display, f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
         else:
             col.metric(nome_display, "N/A", "Sem dados")
 
@@ -2199,8 +2217,8 @@ if not df_resumo.empty:
         if 'CDI' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'CDI'].iloc[0]
             ret_ytd = row['Retorno_YTD']
-            vol_ytd = row['Vol_YTD'] if 'Vol_YTD' in row else 0
-            col_b1.metric("CDI", f"{ret_ytd:.2%}", f"Vol: {vol_ytd:.2%}")
+            vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
+            col_b1.metric("CDI", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
         else:
             col_b1.metric("CDI", "N/A", "Sem dados")
     
@@ -2209,8 +2227,8 @@ if not df_resumo.empty:
         if 'Ibovespa' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'Ibovespa'].iloc[0]
             ret_ytd = row['Retorno_YTD']
-            vol_ytd = row['Vol_YTD'] if 'Vol_YTD' in row else 0
-            col_b2.metric("Ibovespa", f"{ret_ytd:.2%}", f"Vol: {vol_ytd:.2%}")
+            vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
+            col_b2.metric("Ibovespa", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
         else:
             col_b2.metric("Ibovespa", "N/A", "Sem dados")
     
@@ -2219,8 +2237,8 @@ if not df_resumo.empty:
         if 'IFIX' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'IFIX'].iloc[0]
             ret_ytd = row['Retorno_YTD']
-            vol_ytd = row['Vol_YTD'] if 'Vol_YTD' in row else 0
-            col_b3.metric("IFIX", f"{ret_ytd:.2%}", f"Vol: {vol_ytd:.2%}")
+            vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
+            col_b3.metric("IFIX", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
         else:
             col_b3.metric("IFIX", "N/A", "Sem dados")
 
@@ -2322,7 +2340,7 @@ with tab_geral:
         st.markdown(f"<div style='margin-bottom: 15px; font-size: 14px;'>{periodo_semana} {periodo_mtd} {periodo_ytd}</div>", unsafe_allow_html=True)
     
     # Define colunas base
-    cols_view = ["Ativo", "Categoria", "Última_Data", "Retorno_Semana", "Retorno_MTD", "Retorno_YTD", "Vol_YTD", "Sharpe_YTD", "MaxDD_YTD"]
+    cols_view = ["Ativo", "Categoria", "Última_Data", "Retorno_Semana", "Retorno_MTD", "Retorno_YTD", "Vol_252d", "Sharpe_252d", "MaxDD_252d"]
     
     # Adiciona colunas específicas por modo
     if modo_analise == "Período Personalizado":
@@ -2343,7 +2361,7 @@ with tab_geral:
     
     # Converte colunas de retorno e volatilidade para percentual (multiplicando por 100)
     colunas_percentuais = ['Retorno_Semana', 'Retorno_MTD', 'Retorno_YTD', 'Retorno_Custom', 
-                           'Vol_YTD', 'Vol_Custom', 'MaxDD_YTD']
+                           'Vol_252d', 'Vol_Custom', 'MaxDD_252d']
     for col in colunas_percentuais:
         if col in df_display.columns:
             df_display[col] = df_display[col] * 100
@@ -2357,12 +2375,12 @@ with tab_geral:
         "Última_Data": st.column_config.DateColumn("Última Data", format="DD/MM/YYYY", help="Última data com dados disponíveis para o ativo"),
         "Retorno_YTD": st.column_config.ProgressColumn("YTD", format="%.2f%%", min_value=-100.0, max_value=100.0, help="Retorno acumulado no ano (Year to Date)"),
         "Retorno_Custom": st.column_config.ProgressColumn("Custom", format="%.2f%%", min_value=-100.0, max_value=100.0, help="Retorno no período personalizado"),
-        "Vol_YTD": st.column_config.NumberColumn("Vol (aa)", format="%.2f%%", help="Volatilidade anualizada no ano"),
+        "Vol_252d": st.column_config.NumberColumn("Vol (aa)", format="%.2f%%", help="Volatilidade anualizada dos últimos 252 dias úteis"),
         "Vol_Custom": st.column_config.NumberColumn("Vol Custom", format="%.2f%%", help="Volatilidade no período personalizado"),
         "Retorno_Semana": st.column_config.NumberColumn("Semana", format="%.2f%%", help="Retorno na última semana completa"),
         "Retorno_MTD": st.column_config.NumberColumn("Mês", format="%.2f%%", help="Retorno no mês corrente (Month to Date)"),
-        "Sharpe_YTD": st.column_config.NumberColumn("Sharpe", format="%.2f", help="Índice de Sharpe - retorno ajustado ao risco (YTD)"),
-        "MaxDD_YTD": st.column_config.NumberColumn("Max DD", format="%.2f%%", help="Máximo Drawdown - maior queda desde o pico mais alto (YTD)"),
+        "Sharpe_252d": st.column_config.NumberColumn("Sharpe", format="%.2f", help="Índice de Sharpe dos últimos 252 dias úteis - retorno ajustado ao risco"),
+        "MaxDD_252d": st.column_config.NumberColumn("Max DD", format="%.2f%%", help="Máximo Drawdown dos últimos 252 dias úteis - maior queda desde o pico mais alto"),
     }
     
     st.dataframe(
@@ -2383,7 +2401,7 @@ with tab_geral:
         
         # Colunas que devem ser convertidas para percentual (decimal → %)
         colunas_percentuais = ['Retorno_YTD', 'Retorno_MTD', 'Retorno_Semana', 
-                               'Retorno_Custom', 'Vol_YTD', 'Vol_Custom', 'MaxDD_YTD']
+                               'Retorno_Custom', 'Vol_252d', 'Vol_Custom', 'MaxDD_252d']
         
         for col in colunas_percentuais:
             if col in df_metricas_export.columns:
