@@ -3117,27 +3117,35 @@ with tab_heatmap:
         )
         
         if ativo_selecionado:
-            # Calcula retornos mensais
-            df_mensal = calcular_retornos_mensais(df_historico, ativo_selecionado)
+            # Identifica data de inception do ativo (primeira data válida)
+            primeira_data_ativo = df_historico[df_historico[ativo_selecionado].notna()]['Data'].min()
+            
+            # Determina benchmark baseado na categoria
+            if cat_heatmap == "Ações":
+                benchmark = "Ibovespa"
+            elif cat_heatmap == "FIIs":
+                benchmark = "IFIX"
+            else:
+                benchmark = "CDI"
+            
+            # Filtra histórico para começar na mesma data do ativo (sincronização)
+            df_historico_sincronizado = df_historico[df_historico['Data'] >= primeira_data_ativo].copy()
+            
+            # Debug: verifica datas
+            primeira_data_bench_original = df_historico[df_historico[benchmark].notna()]['Data'].min()
+            primeira_data_bench_sincronizado = df_historico_sincronizado[df_historico_sincronizado[benchmark].notna()]['Data'].min()
+            
+            # Calcula retornos mensais do ativo e benchmark (ambos sincronizados)
+            df_mensal = calcular_retornos_mensais(df_historico_sincronizado, ativo_selecionado)
+            df_bench = calcular_retornos_mensais(df_historico_sincronizado, benchmark)
             
             if not df_mensal.empty:
-                # Determina benchmark baseado na categoria
-                if cat_heatmap == "Ações":
-                    benchmark = "Ibovespa"
-                elif cat_heatmap == "FIIs":
-                    benchmark = "IFIX"
-                else:
-                    benchmark = "CDI"
-                
-                # Calcula retornos do benchmark
-                df_bench = calcular_retornos_mensais(df_historico, benchmark)
-                
                 # SEÇÃO 1: TABELA DE RETORNOS MENSAIS (com % vs benchmark) - POSIÇÃO PRIVILEGIADA
                 st.markdown("### Tabela de Retornos Mensais")
-                st.caption(f"Retornos do ativo e % vs {benchmark}")
-                
-                # Cria DataFrame intercalado
-                df_mensal = calcular_retornos_mensais(df_historico, ativo_selecionado)
+                st.caption(
+                    f"Retornos sincronizados desde {primeira_data_ativo.strftime('%d/%m/%Y')} | "
+                    f"{benchmark}: {primeira_data_bench_original.strftime('%d/%m/%Y')} → {primeira_data_bench_sincronizado.strftime('%d/%m/%Y')}"
+                )
                 
                 # Cria lista para armazenar linhas intercaladas
                 linhas_intercaladas = []
