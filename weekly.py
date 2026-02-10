@@ -787,12 +787,12 @@ ORDEM_ATIVOS_API = [# Carteiras
     # RF
     "43.105.224/0001-70",	"34.431.610/0001-61", "36.352.376/0001-02",	"52.155.414/0001-93", 
     "17.313.316/0001-36_unica", "50.716.952/0001-84_unica",	"32.990.051/0001-02_subclasse1",	
-    "32.238.591/0001-26",	"34.583.819/0001-40_unica",	"23.034.819/0001-75",	"60.431.592/0001-28_unica",	
+    "32.238.591/0001-26",	"34.583.819/0001-40_unica",	"23.034.819/0001-75",	"60.431.592/0001-28_unica",	"ANBIMA_IDADI",	
     
     # Multimercados
     "28.947.266/0001-65",	"29.732.926/0001-53",	"38.180.248/0001-54",	"24.193.691/0001-55",
     "30.521.581/0001-78",	"51.133.792/0001-03",	"36.017.731/0001-97",	"52.155.544/0001-26",
-    "35.726.908/0001-61",	"41.776.752/0001-26_subclasse1",
+    "35.726.908/0001-61",	"41.776.752/0001-26_subclasse1",	"ANBIMA_IHFA",
     
     # Ações
     "08.830.947/0001-31",	"IBOV",	"26.956.042/0001-94",	"11.145.320/0001-56",	"73.232.530/0001-39",
@@ -826,7 +826,7 @@ MAPA_NOMES = {
     "17.313.316/0001-36_unica": "Valora", "50.716.952/0001-84_unica": "M8",
     "32.990.051/0001-02_subclasse1": "Kinea Oportunidade", "32.238.591/0001-26": "Angá High Yield",
     "34.583.819/0001-40_unica": "Solis Antares", "23.034.819/0001-75": "Angá Crédito",
-    "60.431.592/0001-28_unica": "FIDC Kinea",
+    "60.431.592/0001-28_unica": "FIDC Kinea", "ANBIMA_IDADI": "IDADI",
     
     # Multimercados (CNPJs com pontos - compatível com ORDEM_ATIVOS_API)
     "28.947.266/0001-65": "Vertex", "29.732.926/0001-53": "Ibiuna Long Short", 
@@ -834,6 +834,7 @@ MAPA_NOMES = {
     "30.521.581/0001-78": "Zeta", "51.133.792/0001-03": "Mar Absoluto", 
     "36.017.731/0001-97": "Genoa Capital", "52.155.544/0001-26": "Ghia MM", 
     "35.726.908/0001-61": "Capstone", "41.776.752/0001-26_subclasse1": "Zeus", 
+    "ANBIMA_IHFA": "IHFA", 
     
     # Ações (CNPJs com pontos - compatível com ORDEM_ATIVOS_API)
     "08.830.947/0001-31": "Guepardo", "26.956.042/0001-94": "Oceana", 
@@ -850,19 +851,11 @@ MAPA_NOMES = {
 CATEGORIAS = {
     "Carteiras Modelo": ["Agressivo (Prod)", "Moderado (Prod)", "Conservador (Prod)", "Ultra (Prod)", "Agressivo (Ind)", "Moderado (Ind)", "Conservador (Ind)"],
     "FIIs": ["Ghia FIIs", "IFIX", "HGCR11", "RBRR11", "TRXF11", "PVBI11", "BRCO11", "KNCR11", "MCRE11", "RBRX11", "HSML11", "KNSC11", "ALZR11", "BTLG11", "MCCI11", "HGLG11"],
-    "Renda Fixa": ["CDI", "Ghia Sul 90", "Root Capital", "Sparta Max", "Ghia RF", "Valora", "M8", "Kinea Oportunidade", "Angá High Yield", "Solis Antares", "Angá Crédito", "FIDC Kinea"],
-    "Multimercados": ["Vertex", "Ibiuna Long Short", "Ace Capital", "SPX Nimitz", "Zeta", "Mar Absoluto", "Genoa Capital", "Ghia MM", "Capstone", "Zeus"],
+    "Renda Fixa": ["CDI", "Ghia Sul 90", "Root Capital", "Sparta Max", "Ghia RF", "Valora", "M8", "Kinea Oportunidade", "Angá High Yield", "Solis Antares", "Angá Crédito", "FIDC Kinea", "IDADI"],
+    "Multimercados": ["Vertex", "Ibiuna Long Short", "Ace Capital", "SPX Nimitz", "Zeta", "Mar Absoluto", "Genoa Capital", "Ghia MM", "Capstone", "Zeus", "IHFA"],
     "Ações": ["Ibovespa", "Guepardo", "Oceana", "Atmos", "Dynamo", "Squadra Long Only", "Ghia RV"],
     "Long Horizon": ["LH Income", "LH Short Duration", "LH Conservative", "LH Balanced", "LH Moderate", "LH Aggressive", "LH Equity"],
     "LH Produtos (ETFs)": ["CSPX", "EIMI", "CEUU", "IJPA", "ISFD", "LQDA", "ERNA", "FLOA", "IB01", "CBU0", "IHYA", "JPEA"]
-}
-
-# Datas de Inception (ITD - Inception to Date) por categoria
-DATAS_INCEPTION = {
-    "FIIs": datetime(2024, 8, 30),
-    "Renda Fixa": datetime(2025, 1, 17),
-    "Multimercados": datetime(2023, 11, 21),
-    "Ações": datetime(2025, 8, 7)
 }
 
 # Produtos Ghia para destaque
@@ -887,7 +880,7 @@ def get_data_comdinheiro(username, password, data_inicio_str, data_fim_str, _cac
     
     # Payload 'x' - Lista de ativos separados por %2B (codificação URL de +)
     # IMPORTANTE: Todos os ativos devem ter %2B ANTES, inclusive o último (LH_Equity)
-    lista_x = "AD_Agressivo_Modelo%2BAD_Moderado_Modelo%2BAD_Conservador_Modelo%2BAD_Ultra_Modelo%2BGhiaAAAgressivoIntTot%2BGhiaAAModeradoIntTot%2BGhiaAAConservadorIntTot%2BCDI%2BGhia_FIIs%2Bifix%2BHGCR11%2BRBRR11%2BTRXF11%2BPVBI11%2BBRCO11%2BKNCR11%2BMCRE11%2BRBRX11%2BHSML11%2BKNSC11%2BALZR11%2BBTLG11%2BMCCI11%2BHGLG11%2B43105224000170%2B34431610000161%2B36352376000102%2B52155414000193%2B17313316000136_unica%2B50716952000184_unica%2B32990051000102_subclasse1%2B32238591000126%2B34583819000140_unica%2B23034819000175%2B60431592000128_unica%2B28947266000165%2B29732926000153%2B38180248000154%2B24193691000155%2B30521581000178%2B51133792000103%2B36017731000197%2B52155544000126%2B35726908000161%2B41776752000126_subclasse1%2B08830947000131%2BIBOV%2B26956042000194%2B11145320000156%2B73232530000139%2B09412822000154%2B61709249000165%2Blh_income%2BLH_ShortDuration%2Blh_conservative%2Blh_balanced%2Blh_moderate%2BLH_Aggressive%2BLH_Equity"
+    lista_x = "AD_Agressivo_Modelo%2BAD_Moderado_Modelo%2BAD_Conservador_Modelo%2BAD_Ultra_Modelo%2BGhiaAAAgressivoIntTot%2BGhiaAAModeradoIntTot%2BGhiaAAConservadorIntTot%2BCDI%2BGhia_FIIs%2Bifix%2BHGCR11%2BRBRR11%2BTRXF11%2BPVBI11%2BBRCO11%2BKNCR11%2BMCRE11%2BRBRX11%2BHSML11%2BKNSC11%2BALZR11%2BBTLG11%2BMCCI11%2BHGLG11%2B43105224000170%2B34431610000161%2B36352376000102%2B52155414000193%2B17313316000136_unica%2B50716952000184_unica%2B32990051000102_subclasse1%2B32238591000126%2B34583819000140_unica%2B23034819000175%2B60431592000128_unica%2BANBIMA_IDADI%2B28947266000165%2B29732926000153%2B38180248000154%2B24193691000155%2B30521581000178%2B51133792000103%2B36017731000197%2B52155544000126%2B35726908000161%2B41776752000126_subclasse1%2BANBIMA_IHFA%2B08830947000131%2BIBOV%2B26956042000194%2B11145320000156%2B73232530000139%2B09412822000154%2B61709249000165%2Blh_income%2BLH_ShortDuration%2Blh_conservative%2Blh_balanced%2Blh_moderate%2BLH_Aggressive%2BLH_Equity"
     
     # URL interna montada com datas dinâmicas
     # IMPORTANTE: A API espera url_interna COM codificação URL nos parâmetros
@@ -1586,7 +1579,7 @@ def calcular_retorno_acumulado_robusto(df_retornos: pd.DataFrame) -> pd.DataFram
 
     return out
 
-def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, calcular_itd=False, tipo_semana="Semana Passada"):
+def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, tipo_semana="Semana Passada"):
     # Debug entrada da função (salvo em session_state)
     if usar_custom:
         if 'debug_info' not in st.session_state:
@@ -1691,29 +1684,6 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         st.session_state.debug_info['ativos_sem_categoria'] = ativos_sem_categoria
         st.session_state.debug_info['warning_categorias'] = f"{len(ativos_sem_categoria)} ativo(s) classificado(s) como 'Outros' (possível problema de renomeação)"
     
-    # Calcula ITD se solicitado
-    if calcular_itd:
-        itd_results = []
-        for _, row in mestre.iterrows():
-            ativo = row['Ativo']
-            categoria = row['Categoria']
-            
-            # Verifica se categoria tem data de inception
-            if categoria in DATAS_INCEPTION:
-                data_inception = DATAS_INCEPTION[categoria]
-                df_itd_temp = calcular_metricas(df, "ITD", data_inception, data_ref)
-                itd_row = df_itd_temp[df_itd_temp['Ativo'] == ativo]
-                if not itd_row.empty:
-                    itd_results.append({
-                        'Ativo': ativo,
-                        'Retorno_ITD': itd_row['Retorno_ITD'].values[0],
-                        'Vol_ITD': itd_row['Vol_ITD'].values[0]
-                    })
-        
-        if itd_results:
-            df_itd = pd.DataFrame(itd_results)
-            mestre = mestre.merge(df_itd, on='Ativo', how='left')
-    
     # Marca produtos Ghia
     mestre['É_Ghia'] = mestre['Ativo'].isin(PRODUTOS_GHIA)
     
@@ -1800,14 +1770,14 @@ with st.sidebar:
 
     # 2.0 PERÍODO DE ANÁLISE (GLOBAL)
     st.markdown("<h4 style='color: #189CD8;'> <strong>Período de Análise</strong></h4>", unsafe_allow_html=True)
-    opcoes_modo = ["Padrão (YTD/MTD/Sem)", "Período Personalizado", "Com ITD (Inception to Date)"]
+    opcoes_modo = ["Padrão (YTD/MTD/Sem)", "Período Personalizado"]
     index_modo = opcoes_modo.index(st.session_state.modo_analise) if st.session_state.modo_analise in opcoes_modo else 0
     st.selectbox(
         "Modo:",
         opcoes_modo,
         index=index_modo,
         key="modo_analise",
-        help="Define o modo global. 'Período Personalizado' habilita datas custom. 'Com ITD' adiciona ITD quando disponível."
+        help="Define o modo global. 'Período Personalizado' habilita datas custom."
     )
 
     if 'debug_info' not in st.session_state:
@@ -2033,7 +2003,6 @@ if st.session_state.dados_carregados and df_historico is not None:
     # Processa dados iniciais com as configurações globais (sidebar)
     tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
     modo_analise_global = st.session_state.get('modo_analise', "Padrão (YTD/MTD/Sem)")
-    calcular_itd_global = (modo_analise_global == "Com ITD (Inception to Date)")
     usar_custom_global = (modo_analise_global == "Período Personalizado") and st.session_state.get('custom_period_valid', False)
 
     d_custom_ini_iso, d_custom_fim_iso = None, None
@@ -2055,7 +2024,6 @@ if st.session_state.dados_carregados and df_historico is not None:
         usar_custom_global,
         d_custom_ini_iso,
         d_custom_fim_iso,
-        calcular_itd=calcular_itd_global,
         tipo_semana=tipo_semana
     )
     
@@ -2278,7 +2246,6 @@ tab_geral, tab_cat, tab_graf, tab_heatmap = st.tabs(["Visão Geral", "Análise p
 
 with tab_geral:
     modo_analise = st.session_state.get('modo_analise', "Padrão (YTD/MTD/Sem)")
-    calcular_itd = (modo_analise == "Com ITD (Inception to Date)")
 
     # Banner informativo sobre período custom ativo
     if modo_analise == "Período Personalizado" and st.session_state.get('custom_period_valid', False):
@@ -2298,8 +2265,7 @@ with tab_geral:
         'linhas_retornadas': len(df_resumo_temp),
         'df_resumo_vazio': df_resumo_temp.empty,
         'colunas': df_resumo_temp.columns.tolist() if not df_resumo_temp.empty else [],
-        'usar_custom_enviado': (modo_analise == "Período Personalizado" and st.session_state.get('custom_period_valid', False)),
-        'calcular_itd': calcular_itd
+        'usar_custom_enviado': (modo_analise == "Período Personalizado" and st.session_state.get('custom_period_valid', False))
     }
     
     # Dados processados sem filtros
@@ -2328,6 +2294,20 @@ with tab_geral:
     else:
         df_resumo_filtrado = df_resumo_temp.copy()
     
+    # Adiciona coluna com a última data disponível para cada ativo
+    ultima_data_map = {}
+    for ativo in df_resumo_filtrado['Ativo'].values:
+        if ativo in df_historico.columns:
+            df_temp = df_historico[['Data', ativo]].dropna()
+            if not df_temp.empty:
+                ultima_data_map[ativo] = df_temp['Data'].max()
+            else:
+                ultima_data_map[ativo] = pd.NaT
+        else:
+            ultima_data_map[ativo] = pd.NaT
+    
+    df_resumo_filtrado['Última_Data'] = df_resumo_filtrado['Ativo'].map(ultima_data_map)
+    
     # Exibe indicadores de período com destaque
     if periodos_info:
         def fmt_date(d):
@@ -2342,7 +2322,7 @@ with tab_geral:
         st.markdown(f"<div style='margin-bottom: 15px; font-size: 14px;'>{periodo_semana} {periodo_mtd} {periodo_ytd}</div>", unsafe_allow_html=True)
     
     # Define colunas base
-    cols_view = ["Ativo", "Categoria", "Retorno_Semana", "Retorno_MTD", "Retorno_YTD", "Vol_YTD", "Sharpe_YTD", "MaxDD_YTD"]
+    cols_view = ["Ativo", "Categoria", "Última_Data", "Retorno_Semana", "Retorno_MTD", "Retorno_YTD", "Vol_YTD", "Sharpe_YTD", "MaxDD_YTD"]
     
     # Adiciona colunas específicas por modo
     if modo_analise == "Período Personalizado":
@@ -2355,10 +2335,6 @@ with tab_geral:
                 f"Exibindo dados personalizados de {data_ini_v.strftime('%d/%m/%Y')} até {data_fim_v.strftime('%d/%m/%Y')}"
             )
     
-    if calcular_itd and 'Retorno_ITD' in df_resumo_filtrado.columns:
-        cols_view.insert(5, "Retorno_ITD")
-        st.info("ITD (Inception to Date) disponível para FIIs, Renda Fixa, Multimercados e Ações")
-    
     # Filtra apenas colunas existentes
     cols_finais = [c for c in cols_view if c in df_resumo_filtrado.columns]
     
@@ -2366,7 +2342,7 @@ with tab_geral:
     df_display = df_resumo_filtrado[cols_finais].copy()
     
     # Converte colunas de retorno e volatilidade para percentual (multiplicando por 100)
-    colunas_percentuais = ['Retorno_Semana', 'Retorno_MTD', 'Retorno_YTD', 'Retorno_ITD', 'Retorno_Custom', 
+    colunas_percentuais = ['Retorno_Semana', 'Retorno_MTD', 'Retorno_YTD', 'Retorno_Custom', 
                            'Vol_YTD', 'Vol_Custom', 'MaxDD_YTD']
     for col in colunas_percentuais:
         if col in df_display.columns:
@@ -2376,17 +2352,17 @@ with tab_geral:
     
     # Configuração de colunas
     column_cfg = {
-        "Ativo": st.column_config.TextColumn("Ativo", width="medium"),
-        "Categoria": st.column_config.TextColumn("Categoria", width="small"),
-        "Retorno_YTD": st.column_config.ProgressColumn("YTD", format="%.2f%%", min_value=-100.0, max_value=100.0),
-        "Retorno_ITD": st.column_config.ProgressColumn("ITD", format="%.2f%%", min_value=-100.0, max_value=200.0),
-        "Retorno_Custom": st.column_config.ProgressColumn("Custom", format="%.2f%%", min_value=-100.0, max_value=100.0),
-        "Vol_YTD": st.column_config.NumberColumn("Vol (aa)", format="%.2f%%"),
-        "Vol_Custom": st.column_config.NumberColumn("Vol Custom", format="%.2f%%"),
-        "Retorno_Semana": st.column_config.NumberColumn("Semana", format="%.2f%%"),
-        "Retorno_MTD": st.column_config.NumberColumn("Mês", format="%.2f%%"),
-        "Sharpe_YTD": st.column_config.NumberColumn("Sharpe", format="%.2f"),
-        "MaxDD_YTD": st.column_config.NumberColumn("Max DD", format="%.2f%%"),
+        "Ativo": st.column_config.TextColumn("Ativo", width="medium", help="Nome do ativo ou carteira"),
+        "Categoria": st.column_config.TextColumn("Categoria", width="small", help="Categoria do ativo (FIIs, Renda Fixa, Multimercados, etc.)"),
+        "Última_Data": st.column_config.DateColumn("Última Data", format="DD/MM/YYYY", help="Última data com dados disponíveis para o ativo"),
+        "Retorno_YTD": st.column_config.ProgressColumn("YTD", format="%.2f%%", min_value=-100.0, max_value=100.0, help="Retorno acumulado no ano (Year to Date)"),
+        "Retorno_Custom": st.column_config.ProgressColumn("Custom", format="%.2f%%", min_value=-100.0, max_value=100.0, help="Retorno no período personalizado"),
+        "Vol_YTD": st.column_config.NumberColumn("Vol (aa)", format="%.2f%%", help="Volatilidade anualizada no ano"),
+        "Vol_Custom": st.column_config.NumberColumn("Vol Custom", format="%.2f%%", help="Volatilidade no período personalizado"),
+        "Retorno_Semana": st.column_config.NumberColumn("Semana", format="%.2f%%", help="Retorno na última semana completa"),
+        "Retorno_MTD": st.column_config.NumberColumn("Mês", format="%.2f%%", help="Retorno no mês corrente (Month to Date)"),
+        "Sharpe_YTD": st.column_config.NumberColumn("Sharpe", format="%.2f", help="Índice de Sharpe - retorno ajustado ao risco (YTD)"),
+        "MaxDD_YTD": st.column_config.NumberColumn("Max DD", format="%.2f%%", help="Máximo Drawdown - maior queda desde o pico mais alto (YTD)"),
     }
     
     st.dataframe(
@@ -2406,7 +2382,7 @@ with tab_geral:
         df_metricas_export = df_display.copy()
         
         # Colunas que devem ser convertidas para percentual (decimal → %)
-        colunas_percentuais = ['Retorno_YTD', 'Retorno_MTD', 'Retorno_Semana', 'Retorno_ITD', 
+        colunas_percentuais = ['Retorno_YTD', 'Retorno_MTD', 'Retorno_Semana', 
                                'Retorno_Custom', 'Vol_YTD', 'Vol_Custom', 'MaxDD_YTD']
         
         for col in colunas_percentuais:
@@ -2509,7 +2485,6 @@ with tab_cat:
         # Fallback: processa dados respeitando período personalizado se ativo
         tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
         usar_custom = (st.session_state.get('modo_analise') == "Período Personalizado") and st.session_state.get('custom_period_valid', False)
-        calcular_itd = (st.session_state.get('modo_analise') == "Com ITD (Inception to Date)")
         
         if usar_custom:
             data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
@@ -2519,11 +2494,10 @@ with tab_cat:
                 True, 
                 data_ini_v.isoformat(), 
                 data_fim_v.isoformat(), 
-                calcular_itd,
                 tipo_semana
             )
         else:
-            df_resumo_temp, _ = processar_mestre(df_historico, str(data_ref), False, None, None, calcular_itd, tipo_semana)
+            df_resumo_temp, _ = processar_mestre(df_historico, str(data_ref), False, None, None, tipo_semana)
         
         df_cat = df_resumo_temp[df_resumo_temp['Categoria'] == cat_select].copy()
     
@@ -2760,15 +2734,6 @@ with tab_cat:
 with tab_graf:
     st.markdown("<h3 style='color: #189CD8;'><strong>Explorador Visual - Análise por Categorias</strong></h3>", unsafe_allow_html=True)
     
-    # Info: aponta para sidebar como fonte única
-    if st.session_state.get('modo_analise') == "Período Personalizado":
-        if st.session_state.get('custom_period_valid'):
-            data_ini_v, data_fim_v, _, _ = validar_e_obter_periodo_custom()
-            if data_ini_v and data_fim_v:
-                st.info(f"Período custom ativo: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')} | Configurável na barra lateral")
-        else:
-            st.warning("Período custom inválido | Configure na barra lateral")
-    
     # Layout principal: Seleção de categorias e período
     col_g1, col_g2 = st.columns([3, 1])
     
@@ -2785,7 +2750,7 @@ with tab_graf:
     
     with col_g2:
         # Opções disponíveis dependem se período custom está calculado
-        opcoes_periodo_graf = ["Semanal", "MTD", "YTD", "ITD"]
+        opcoes_periodo_graf = ["Semanal", "MTD", "YTD"]
         # Sempre mostra "Personalizado" se o modo estiver ativo (mesmo que ainda inválido)
         if st.session_state.get('modo_analise') == "Período Personalizado":
             opcoes_periodo_graf.append("Personalizado")
@@ -2853,10 +2818,6 @@ with tab_graf:
     # Aplicar omissões confirmadas
     sel_assets = [a for a in ativos_disponiveis if a not in st.session_state.ativos_omitidos_confirmados]
     
-    # Informação sobre ativos selecionados
-    if sel_assets:
-        st.info(f"Exibindo {len(sel_assets)} ativo(s) de {len(st.session_state.categorias_selecionadas_grafico)} categoria(s)")
-    
     # Organizar expanders lado a lado
     col_exp1, col_exp2 = st.columns(2)
     
@@ -2913,7 +2874,6 @@ with tab_graf:
             st.error(f"{msg_erro}. Configure o período na barra lateral primeiro.")
             sel_assets = []  # Impede renderização de gráfico com período inválido
         else:
-            st.info(f"Usando período definido: {data_ini_v.strftime('%d/%m/%Y')} a {data_fim_v.strftime('%d/%m/%Y')}")
             # Converte para datetime
             d_graf_ini = pd.to_datetime(data_ini_v)
             d_graf_fim = pd.to_datetime(data_fim_v)
@@ -2931,14 +2891,9 @@ with tab_graf:
         elif periodo_expl == "MTD":
             d_graf_ini = calcular_ultimo_dia_util_mes_anterior(data_ref)
             d_graf_fim = data_ref
-        elif periodo_expl == "YTD":
+        else:  # YTD
             d_graf_ini = calcular_ultimo_dia_util_ano_anterior(data_ref)
             d_graf_fim = data_ref
-        else:  # ITD
-            d_graf_ini = df_historico['Data'].min()
-            d_graf_fim = data_ref
-
-        st.info(f"Período: {pd.to_datetime(d_graf_ini).strftime('%d/%m/%Y')} a {pd.to_datetime(d_graf_fim).strftime('%d/%m/%Y')}")
     
     st.markdown("---")
     
@@ -2972,6 +2927,11 @@ with tab_graf:
             df_g = calcular_retorno_acumulado_robusto(df_g)
             # Remove linhas onde TODOS os ativos são NaN (antes do inception)
             df_g = df_g.dropna(how='all')
+            
+            # Reordena colunas do maior para o menor valor (última linha) para ordenar hover
+            ultima_linha = df_g.iloc[-1]
+            colunas_ordenadas = ultima_linha.sort_values(ascending=False).index.tolist()
+            df_g = df_g[colunas_ordenadas]
             
             titulo = "Evolução do Retorno Acumulado no Período"
             y_tickformat = ".2%"
@@ -3018,6 +2978,12 @@ with tab_graf:
                 # Calcula volatilidade expandindo (desde o início até cada dia)
                 df_vol_rolling = df_g_raw.expanding(min_periods=2).std() * np.sqrt(252)
                 
+                # Reordena colunas do maior para o menor valor (última linha) para ordenar hover
+                if not df_vol_rolling.empty:
+                    ultima_linha_vol = df_vol_rolling.iloc[-1]
+                    colunas_ordenadas_vol = ultima_linha_vol.sort_values(ascending=False).index.tolist()
+                    df_vol_rolling = df_vol_rolling[colunas_ordenadas_vol]
+                
                 fig_vol = px.line(
                     df_vol_rolling,
                     labels={'value': 'Volatilidade Anualizada', 'Data': 'Data', 'variable': 'Ativo'},
@@ -3047,6 +3013,12 @@ with tab_graf:
                 # Calcula drawdown
                 df_cumret = (1 + df_g_raw).cumprod()
                 df_drawdown = (df_cumret / df_cumret.cummax() - 1)
+                
+                # Reordena colunas do MENOR para o MAIOR drawdown (mais negativo = pior) para ordenar hover
+                if not df_drawdown.empty:
+                    ultima_linha_dd = df_drawdown.iloc[-1]
+                    colunas_ordenadas_dd = ultima_linha_dd.sort_values(ascending=True).index.tolist()
+                    df_drawdown = df_drawdown[colunas_ordenadas_dd]
                 
                 fig_dd = px.line(
                     df_drawdown,
