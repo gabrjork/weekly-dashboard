@@ -849,9 +849,9 @@ MAPA_NOMES = {
 
 # Categorias Atualizadas (SEM categoria Benchmarks - CDI, IFIX e Ibovespa distribuídos)
 CATEGORIAS = {
-    "Carteiras Modelo": ["Agressivo (Prod)", "Moderado (Prod)", "Conservador (Prod)", "Ultra (Prod)", "Agressivo (Ind)", "Moderado (Ind)", "Conservador (Ind)"],
+    "Carteiras Modelo": ["CDI", "Agressivo (Prod)", "Moderado (Prod)", "Conservador (Prod)", "Ultra (Prod)", "Agressivo (Ind)", "Moderado (Ind)", "Conservador (Ind)"],
     "FIIs": ["Ghia FIIs", "IFIX", "HGCR11", "RBRR11", "TRXF11", "PVBI11", "BRCO11", "KNCR11", "MCRE11", "RBRX11", "HSML11", "KNSC11", "ALZR11", "BTLG11", "MCCI11", "HGLG11"],
-    "Renda Fixa": ["CDI", "Ghia Sul 90", "Root Capital", "Sparta Max", "Ghia RF", "Valora", "M8", "Kinea Oportunidade", "Angá High Yield", "Solis Antares", "Angá Crédito", "FIDC Kinea", "IDADI"],
+    "Renda Fixa": ["Ghia Sul 90", "Root Capital", "Sparta Max", "Ghia RF", "Valora", "M8", "Kinea Oportunidade", "Angá High Yield", "Solis Antares", "Angá Crédito", "FIDC Kinea", "IDADI"],
     "Multimercados": ["Vertex", "Ibiuna Long Short", "Ace Capital", "SPX Nimitz", "Zeta", "Mar Absoluto", "Genoa Capital", "Ghia MM", "Capstone", "Zeus", "IHFA"],
     "Ações": ["Ibovespa", "Guepardo", "Oceana", "Atmos", "Dynamo", "Squadra Long Only", "Ghia RV"],
     "Long Horizon": ["LH Income", "LH Short Duration", "LH Conservative", "LH Balanced", "LH Moderate", "LH Aggressive", "LH Equity"],
@@ -1881,6 +1881,51 @@ with st.sidebar:
     
     st.markdown("---")
     
+    # 3. OMISSÃO DE ATIVOS
+    st.markdown("<h4 style='color: #189CD8;'><strong>Filtros de Ativos</strong></h4>", unsafe_allow_html=True)
+    with st.expander("Omitir Ativos Específicos"):
+        st.markdown("**Selecione os ativos que deseja OMITIR de toda a análise:**")
+        
+        # Lista todos os ativos disponíveis dos dados ORIGINAIS (antes da filtragem)
+        if st.session_state.get('dados_carregados', False) and st.session_state.get('df_historico_original') is not None:
+            df_hist_original = st.session_state.df_historico_original
+            todos_ativos = [col for col in df_hist_original.columns if col != 'Data' and "Dup" not in col]
+        else:
+            todos_ativos = []
+        
+        if todos_ativos:
+            # Filtra default para conter apenas ativos que estão na lista
+            default_valido = [a for a in st.session_state.ativos_omitidos_confirmados if a in todos_ativos]
+            
+            ativos_omitir_sidebar = st.multiselect(
+                "Ativos a omitir:",
+                todos_ativos,
+                default=default_valido,
+                key="ativos_omitir_sidebar",
+                help="Os ativos selecionados serão removidos de todas as análises e gráficos"
+            )
+            
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                if st.button("Aplicar", type="primary", key="btn_aplicar_omitir_sidebar"):
+                    st.session_state.ativos_omitidos_confirmados = ativos_omitir_sidebar
+                    st.session_state.ativos_omitidos_temp = ativos_omitir_sidebar
+                    st.success(f"{len(ativos_omitir_sidebar)} ativo(s) omitido(s)")
+                    st.rerun()
+            with col_btn2:
+                if st.button("Limpar", key="btn_limpar_omitir_sidebar"):
+                    st.session_state.ativos_omitidos_temp = []
+                    st.session_state.ativos_omitidos_confirmados = []
+                    st.success("Filtros removidos")
+                    st.rerun()
+            
+            if st.session_state.ativos_omitidos_confirmados:
+                st.caption(f"{len(st.session_state.ativos_omitidos_confirmados)} ativo(s) omitido(s) atualmente")
+        else:
+            st.caption("Carregue os dados para selecionar ativos")
+    
+    st.markdown("---")
+    
     # 4. CACHE
     st.markdown("<h4 style='color: #189CD8;'><strong>Cache</strong></h4>", unsafe_allow_html=True)
     if st.button("Limpar Cache", help="Força o recarregamento dos dados da API"):
@@ -1918,6 +1963,8 @@ if 'dados_carregados' not in st.session_state:
     st.session_state.dados_carregados = False
 if 'df_historico' not in st.session_state:
     st.session_state.df_historico = None
+if 'df_historico_original' not in st.session_state:
+    st.session_state.df_historico_original = None
 if 'botao_clicado' not in st.session_state:
     st.session_state.botao_clicado = False
 
@@ -2017,6 +2064,7 @@ if st.session_state.botao_clicado and not st.session_state.dados_carregados:
     
     # Armazena no session state
     st.session_state.df_historico = df_historico
+    st.session_state.df_historico_original = df_historico.copy()  # Cópia dos dados originais
     st.session_state.dados_carregados = True
 else:
     # Usa dados já carregados
@@ -2025,6 +2073,16 @@ else:
 
 # Só processa dados se já foram carregados
 if st.session_state.dados_carregados and df_historico is not None:
+    
+    # Aplica filtro de ativos omitidos globalmente
+    ativos_omitidos = st.session_state.get('ativos_omitidos_confirmados', [])
+    if ativos_omitidos:
+        # Remove colunas dos ativos omitidos do dataframe histórico
+        colunas_manter = ['Data'] + [col for col in df_historico.columns if col != 'Data' and col not in ativos_omitidos]
+        df_historico = df_historico[colunas_manter].copy()
+        # Atualiza o session_state com dados filtrados
+        st.session_state.df_historico = df_historico
+        df_historico = df_historico[colunas_manter].copy()
     
     # Processa dados iniciais com as configurações globais (sidebar)
     tipo_semana = st.session_state.get('tipo_semana', 'Semana Passada')
@@ -2191,7 +2249,7 @@ col1, col2, col3, col4, col5 = st.columns(5)
 
 # Produtos fixos para exibição
 produtos_fixos = {
-    'Moderado (Prod)': 'Carteira Moderada',
+    'Moderado (Ind)': 'Carteira Moderada',
     'Ghia RV': 'Ghia RV',
     'Ghia MM': 'Ghia MM',
     'Ghia RF': 'Ghia RF',
@@ -2203,8 +2261,9 @@ if not df_resumo.empty:
         if ativo_key in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == ativo_key].iloc[0]
             ret_ytd = row['Retorno_YTD']
+            ret_semana = row['Retorno_Semana'] if 'Retorno_Semana' in row else 0
             vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
-            col.metric(nome_display, f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
+            col.metric(nome_display, f"{ret_ytd:.2%}", f"Semana: {ret_semana:.2%} | Vol: {vol_252d:.2%}")
         else:
             col.metric(nome_display, "N/A", "Sem dados")
 
@@ -2225,8 +2284,9 @@ if not df_resumo.empty:
         if 'CDI' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'CDI'].iloc[0]
             ret_ytd = row['Retorno_YTD']
+            ret_semana = row['Retorno_Semana'] if 'Retorno_Semana' in row else 0
             vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
-            col_b1.metric("CDI", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
+            col_b1.metric("CDI", f"{ret_ytd:.2%}", f"Sem: {ret_semana:.2%} | Vol: {vol_252d:.2%}")
         else:
             col_b1.metric("CDI", "N/A", "Sem dados")
     
@@ -2235,8 +2295,9 @@ if not df_resumo.empty:
         if 'Ibovespa' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'Ibovespa'].iloc[0]
             ret_ytd = row['Retorno_YTD']
+            ret_semana = row['Retorno_Semana'] if 'Retorno_Semana' in row else 0
             vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
-            col_b2.metric("Ibovespa", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
+            col_b2.metric("Ibovespa", f"{ret_ytd:.2%}", f"Sem: {ret_semana:.2%} | Vol: {vol_252d:.2%}")
         else:
             col_b2.metric("Ibovespa", "N/A", "Sem dados")
     
@@ -2245,8 +2306,9 @@ if not df_resumo.empty:
         if 'IFIX' in df_resumo['Ativo'].values:
             row = df_resumo[df_resumo['Ativo'] == 'IFIX'].iloc[0]
             ret_ytd = row['Retorno_YTD']
+            ret_semana = row['Retorno_Semana'] if 'Retorno_Semana' in row else 0
             vol_252d = row['Vol_252d'] if 'Vol_252d' in row else 0
-            col_b3.metric("IFIX", f"{ret_ytd:.2%}", f"Vol: {vol_252d:.2%}")
+            col_b3.metric("IFIX", f"{ret_ytd:.2%}", f"Sem: {ret_semana:.2%} | Vol: {vol_252d:.2%}")
         else:
             col_b3.metric("IFIX", "N/A", "Sem dados")
 
@@ -2853,11 +2915,14 @@ with tab_graf:
             with st.expander("Configurações Avançadas - Omitir Ativos Específicos"):
                 st.markdown("**Selecione os ativos que deseja OMITIR do gráfico:**")
                 
+                # Filtrar default para conter apenas ativos que ainda estão disponíveis
+                default_valido = [a for a in st.session_state.ativos_omitidos_temp if a in ativos_disponiveis]
+                
                 # Usar variável temporária que só afeta após confirmar
                 ativos_omitir = st.multiselect(
                     "Ativos a omitir:",
                     ativos_disponiveis,
-                    default=st.session_state.ativos_omitidos_temp,
+                    default=default_valido,
                     key="ativos_omitir_widget"
                 )
                 st.session_state.ativos_omitidos_temp = ativos_omitir
@@ -3125,6 +3190,10 @@ with tab_heatmap:
                 benchmark = "Ibovespa"
             elif cat_heatmap == "FIIs":
                 benchmark = "IFIX"
+            elif cat_heatmap == "Multimercados":
+                benchmark = "IHFA"
+            elif cat_heatmap == "Carteiras Modelo":
+                benchmark = "CDI"
             else:
                 benchmark = "CDI"
             
