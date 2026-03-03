@@ -72,3 +72,22 @@ streamlit run weekly.py
 - Histórico Mensal com Heatmaps
 - Cálculo de métricas (Retorno, Volatilidade, Sharpe, Max Drawdown)
 - Comparação com benchmarks (CDI, Ibovespa, IFIX)
+- **Exportação PNG** com fonte Plus Jakarta Sans profissional
+
+### 🎨 Exportação PNG com Plus Jakarta Sans
+
+O app baixa e instala automaticamente a fonte **Plus Jakarta Sans** do Google Fonts para garantir que os PNGs exportados tenham a tipografia correta.
+
+**Como funciona:**
+1. O app detecta o sistema operacional (Linux/macOS/Windows)
+2. Baixa a fonte Plus Jakarta Sans do repositório oficial do Google
+3. Instala na pasta de fontes do usuário
+4. Atualiza o cache de fontes (no Linux)
+
+**No Streamlit Cloud:**
+- O arquivo `packages.txt` instala pacotes de sistema necessários
+- A fonte é baixada automaticamente na primeira execução
+- Os PNGs são exportados em alta resolução (1200x1200px, scale=2) com a fonte correta
+
+**Fallback:**
+Se a instalação da fonte falhar (permissões, rede, etc.), o app usa Arial/Helvetica como fallback automático.

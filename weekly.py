@@ -14,6 +14,62 @@ import plotly.io as pio
 pio.templates.default = "plotly_white"
 
 # ==============================================================================
+# CONFIGURAÇÃO DE FONTE PLUS JAKARTA SANS PARA EXPORTAÇÃO PNG
+# ==============================================================================
+import os
+import sys
+from pathlib import Path
+
+def setup_plus_jakarta_font():
+    """
+    Baixa e instala Plus Jakarta Sans do Google Fonts para uso com Kaleido.
+    Necessário para exportação PNG no Streamlit Cloud.
+    """
+    try:
+        # Diretório de fontes do usuário
+        if sys.platform == 'linux':
+            font_dir = Path.home() / '.fonts'
+        elif sys.platform == 'darwin':  # macOS
+            font_dir = Path.home() / 'Library' / 'Fonts'
+        else:  # Windows
+            font_dir = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'Microsoft' / 'Windows' / 'Fonts'
+        
+        font_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Verifica se a fonte já está instalada
+        font_file = font_dir / 'PlusJakartaSans-Regular.ttf'
+        if font_file.exists():
+            return True
+        
+        # URLs das fontes Plus Jakarta Sans do Google Fonts
+        font_urls = {
+            'PlusJakartaSans-Regular.ttf': 'https://github.com/google/fonts/raw/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
+        }
+        
+        # Baixa a fonte
+        for filename, url in font_urls.items():
+            font_path = font_dir / filename
+            if not font_path.exists():
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    font_path.write_bytes(response.content)
+        
+        # No Linux, atualiza o cache de fontes
+        if sys.platform == 'linux':
+            os.system('fc-cache -f')
+        
+        return True
+    except Exception as e:
+        print(f"Aviso: Não foi possível instalar Plus Jakarta Sans: {e}")
+        print("Os PNGs usarão fonte alternativa (Arial/Helvetica)")
+        return False
+
+# Tenta instalar a fonte na primeira execução
+if 'font_setup_done' not in st.session_state:
+    setup_plus_jakarta_font()
+    st.session_state.font_setup_done = True
+
+# ==============================================================================
 # CONFIGURAÇÃO DE CALENDÁRIO BRASILEIRO (ANBIMA) - ALINHAMENTO COM R
 # ==============================================================================
 # Usa calendário B3 (Bolsa brasileira) que segue feriados ANBIMA
@@ -147,6 +203,49 @@ def calcular_ultimo_dia_util_ano_anterior(data_ref):
     tentativas = 0
     
     while not eh_dia_util_br(data_aux) and tentativas < 10:
+        data_aux = data_aux - timedelta(days=1)
+        tentativas += 1
+    
+    return data_aux
+
+def esta_na_primeira_semana_do_mes(data_ref):
+    """
+    Verifica se a data de referência está na primeira semana do mês.
+    Considera primeira semana como: do dia 1 até o primeiro domingo (inclusive).
+    """
+    data_aux = pd.Timestamp(data_ref)
+    
+    # Se o dia é maior que 7, definitivamente não está na primeira semana
+    if data_aux.day > 7:
+        return False
+    
+    # Está na primeira semana se: dia <= 7
+    return True
+
+def calcular_inicio_mes_anterior(data_ref):
+    """
+    Calcula o primeiro dia útil do mês ANTERIOR (ou último dia do mês retrasado).
+    Para calcular o retorno mensal completo do mês anterior quando estamos na primeira semana.
+    """
+    data_aux = pd.Timestamp(data_ref)
+    
+    # Primeiro dia do mês atual
+    primeiro_dia_mes = data_aux.replace(day=1)
+    
+    # Retrocede para o último dia do mês anterior
+    ultimo_dia_mes_anterior = primeiro_dia_mes - timedelta(days=1)
+    
+    # Primeiro dia do mês anterior
+    primeiro_dia_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
+    
+    # Retrocede 1 dia para pegar o último dia do mês retrasado
+    ultimo_dia_mes_retrasado = primeiro_dia_mes_anterior - timedelta(days=1)
+    
+    # Garante que é dia útil (retrocede se necessário)
+    data_aux = ultimo_dia_mes_retrasado
+    tentativas = 0
+    
+    while not eh_dia_util_br(data_aux) and tentativas < 31:
         data_aux = data_aux - timedelta(days=1)
         tentativas += 1
     
@@ -1632,14 +1731,14 @@ def dataframe_to_png(df, title="", width=1100, height=None):
         header=dict(
             values=[f"<b>{col}</b>" for col in header_values],
             fill_color='#189CD8',
-            font=dict(color='white', size=16, family='DM Sans, Helvetica, Arial, sans-serif'),
+            font=dict(color='white', size=16, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
             align='center',
             height=50  # Aumentado de 40 para 50
         ),
         cells=dict(
             values=cell_values,
             fill_color=[['#F8F9FA', 'white'] * len(df)],  # Alterna cores
-            font=dict(color='#2C3E50', size=15, family='DM Sans, Helvetica, Arial, sans-serif'),
+            font=dict(color='#2C3E50', size=15, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
             align=alignments,
             height=40  # Aumentado de 30 para 40
         )
@@ -1650,7 +1749,7 @@ def dataframe_to_png(df, title="", width=1100, height=None):
         margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor='white',
         height=height,
-        font=dict(family='DM Sans, Helvetica, Arial, sans-serif')
+        font=dict(family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif')
     )
     
     # Exporta como PNG usando kaleido
@@ -1659,6 +1758,9 @@ def dataframe_to_png(df, title="", width=1100, height=None):
     return img_bytes
 
 def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, tipo_semana="Semana Passada"):
+    # Garante que data_ref_analise seja pd.Timestamp
+    data_ref_analise = pd.to_datetime(data_ref_analise)
+    
     # Debug entrada da função (salvo em session_state)
     if usar_custom:
         if 'debug_info' not in st.session_state:
@@ -1694,26 +1796,53 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         inicio_ano = calcular_ultimo_dia_util_ano_anterior(data_ref)
     
     # MTD: Usa a ÚLTIMA DATA DISPONÍVEL do mês anterior nos dados
-    mes_anterior = (data_ref.replace(day=1) - timedelta(days=1))
-    datas_mes_anterior = df_ate_ref[
-        (df_ate_ref['Data'].dt.year == mes_anterior.year) & 
-        (df_ate_ref['Data'].dt.month == mes_anterior.month)
-    ]['Data']
-    if not datas_mes_anterior.empty:
-        inicio_mtd = datas_mes_anterior.max()
+    # EXCEÇÃO: Na primeira semana do mês, usa o retorno mensal COMPLETO do mês anterior
+    if esta_na_primeira_semana_do_mes(data_ref_analise):
+        # Primeira semana do mês: calcula retorno mensal completo do mês anterior
+        # Início: último dia do mês RETRASADO
+        # Fim: último dia do mês ANTERIOR
+        inicio_mes_anterior_completo = calcular_inicio_mes_anterior(data_ref_analise)
+        
+        mes_anterior = (data_ref_analise.replace(day=1) - timedelta(days=1))
+        datas_mes_anterior = df_ate_ref[
+            (df_ate_ref['Data'].dt.year == mes_anterior.year) & 
+            (df_ate_ref['Data'].dt.month == mes_anterior.month)
+        ]['Data']
+        
+        if not datas_mes_anterior.empty:
+            # Usa a última data disponível do mês anterior como fim
+            fim_mes_anterior = datas_mes_anterior.max()
+        else:
+            fim_mes_anterior = calcular_ultimo_dia_util_mes_anterior(data_ref_analise)
+        
+        # Para MTD na primeira semana, usamos o período completo do mês anterior
+        inicio_mtd = inicio_mes_anterior_completo
+        data_ref_mtd = fim_mes_anterior
     else:
-        # Fallback: se não há dados do mês anterior, usa cálculo de calendário
-        inicio_mtd = calcular_ultimo_dia_util_mes_anterior(data_ref)
+        # Lógica normal: MTD do mês atual (desde último dia do mês anterior até hoje)
+        mes_anterior = (data_ref.replace(day=1) - timedelta(days=1))
+        datas_mes_anterior = df_ate_ref[
+            (df_ate_ref['Data'].dt.year == mes_anterior.year) & 
+            (df_ate_ref['Data'].dt.month == mes_anterior.month)
+        ]['Data']
+        if not datas_mes_anterior.empty:
+            inicio_mtd = datas_mes_anterior.max()
+        else:
+            # Fallback: se não há dados do mês anterior, usa cálculo de calendário
+            inicio_mtd = calcular_ultimo_dia_util_mes_anterior(data_ref)
+        data_ref_mtd = data_ref
 
     # Semana: Calcula baseado na escolha do usuário
+    # IMPORTANTE: Sempre usa data_ref_analise (data de hoje), não data_ref
+    # Isso corrige o bug onde período personalizado estava causando cálculos de semana errados
     if tipo_semana == "Semana Passada":
         # Semana completa já encerrada: sexta-feira de 2 semanas atrás até sexta-feira da semana passada
-        data_semana_inicio = calcular_sexta_feira_semana_retrasada(data_ref)
-        data_semana_fim = calcular_sexta_feira_semana_anterior(data_ref)
+        data_semana_inicio = calcular_sexta_feira_semana_retrasada(data_ref_analise)
+        data_semana_fim = calcular_sexta_feira_semana_anterior(data_ref_analise)
     else:  # "Semana Corrente"
         # Semana em andamento: sexta-feira da semana anterior até sexta-feira atual (ou último dia útil)
-        data_semana_inicio = calcular_sexta_feira_semana_anterior(data_ref)
-        data_semana_fim = calcular_sexta_feira_semana_atual(data_ref)
+        data_semana_inicio = calcular_sexta_feira_semana_anterior(data_ref_analise)
+        data_semana_fim = calcular_sexta_feira_semana_atual(data_ref_analise)
     
     # Pega as datas mais próximas disponíveis no dataset
     datas_disponiveis = df_ate_ref['Data']
@@ -1723,8 +1852,9 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
     if pd.isna(data_semana):
         data_semana = df_ate_ref.iloc[0]['Data']
     
-    # Para a data final da semana, usa o menor entre data_ref e data_semana_fim
-    data_semana_ref = min(data_ref, data_semana_fim)
+    # Para a data final da semana, usa data_semana_fim (sempre baseado em data_ref_analise, não data_ref)
+    # Isso corrige o bug onde período personalizado limitava incorretamente o cálculo semanal
+    data_semana_ref = data_semana_fim
     
     # Período de 252 dias úteis (aproximadamente 1 ano)
     # Encontra a data 252 dias úteis antes da data_ref
@@ -1741,7 +1871,7 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         inicio_252d = data_ref - timedelta(days=365)  # Fallback
         
     df_ytd = calcular_metricas(df, "YTD", inicio_ano, data_ref)
-    df_mtd = calcular_metricas(df, "MTD", inicio_mtd, data_ref)
+    df_mtd = calcular_metricas(df, "MTD", inicio_mtd, data_ref_mtd)
     df_sem = calcular_metricas(df, "Semana", data_semana, data_semana_ref)
     df_252d = calcular_metricas(df, "252d", inicio_252d, data_ref)
     
@@ -1787,11 +1917,12 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         'semana_inicio': data_semana,
         'semana_fim': data_semana_ref,
         'mtd_inicio': inicio_mtd,
-        'mtd_fim': data_ref,
+        'mtd_fim': data_ref_mtd,
         'ytd_inicio': inicio_ano,
         'ytd_fim': data_ref,
         '252d_inicio': inicio_252d,
-        '252d_fim': data_ref
+        '252d_fim': data_ref,
+        'primeira_semana_mes': esta_na_primeira_semana_do_mes(data_ref_analise)
     }
     
     # Armazena info de períodos para debug
@@ -1801,9 +1932,10 @@ def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_f
         'YTD_inicio': inicio_ano.strftime('%d/%m/%Y'),
         'YTD_fim': data_ref.strftime('%d/%m/%Y'),
         'MTD_inicio': inicio_mtd.strftime('%d/%m/%Y'),
-        'MTD_fim': data_ref.strftime('%d/%m/%Y'),
+        'MTD_fim': data_ref_mtd.strftime('%d/%m/%Y'),
         'Semana_inicio': data_semana.strftime('%d/%m/%Y') if not pd.isna(data_semana) else 'N/A',
-        'Semana_fim': data_semana_ref.strftime('%d/%m/%Y')
+        'Semana_fim': data_semana_ref.strftime('%d/%m/%Y'),
+        'primeira_semana_mes': esta_na_primeira_semana_do_mes(data_ref_analise)
     }
     
     return mestre, periodos_info
@@ -2475,7 +2607,15 @@ with tab_geral:
             return "N/A"
         
         periodo_semana = f"<span style='background-color: #E3F2FD; padding: 4px 8px; border-radius: 4px; margin-right: 10px;'><strong>Semanal:</strong> {fmt_date(periodos_info.get('semana_inicio'))} a {fmt_date(periodos_info.get('semana_fim'))}</span>"
-        periodo_mtd = f"<span style='background-color: #E8F5E9; padding: 4px 8px; border-radius: 4px; margin-right: 10px;'><strong>MTD:</strong> {fmt_date(periodos_info.get('mtd_inicio'))} a {fmt_date(periodos_info.get('mtd_fim'))}</span>"
+        
+        # Adapta texto do MTD se estiver na primeira semana do mês
+        if periodos_info.get('primeira_semana_mes', False):
+            # Extrai o nome do mês anterior
+            mes_anterior_nome = pd.to_datetime(periodos_info.get('mtd_fim')).strftime('%b/%Y')
+            periodo_mtd = f"<span style='background-color: #E8F5E9; padding: 4px 8px; border-radius: 4px; margin-right: 10px;'><strong>Mês Anterior ({mes_anterior_nome}):</strong> {fmt_date(periodos_info.get('mtd_inicio'))} a {fmt_date(periodos_info.get('mtd_fim'))}</span>"
+        else:
+            periodo_mtd = f"<span style='background-color: #E8F5E9; padding: 4px 8px; border-radius: 4px; margin-right: 10px;'><strong>MTD:</strong> {fmt_date(periodos_info.get('mtd_inicio'))} a {fmt_date(periodos_info.get('mtd_fim'))}</span>"
+        
         periodo_ytd = f"<span style='background-color: #FFF9C4; padding: 4px 8px; border-radius: 4px;'><strong>YTD:</strong> {fmt_date(periodos_info.get('ytd_inicio'))} a {fmt_date(periodos_info.get('ytd_fim'))}</span>"
         
         st.markdown(f"<div style='margin-bottom: 15px; font-size: 14px;'>{periodo_semana} {periodo_mtd} {periodo_ytd}</div>", unsafe_allow_html=True)
@@ -2509,7 +2649,15 @@ with tab_geral:
     
     df_display = df_display.sort_values("Retorno_YTD", ascending=False)
     
-    # Configuração de colunas
+    # Configuração de colunas com adaptação para primeira semana do mês
+    label_mtd = "Mês"
+    help_mtd = "Retorno no mês corrente (Month to Date)"
+    
+    if periodos_info and periodos_info.get('primeira_semana_mes', False):
+        mes_anterior_nome = pd.to_datetime(periodos_info.get('mtd_fim')).strftime('%b/%Y')
+        label_mtd = f"Mês Ant. ({mes_anterior_nome})"
+        help_mtd = f"Retorno mensal completo de {mes_anterior_nome}"
+    
     column_cfg = {
         "Ativo": st.column_config.TextColumn("Ativo", width="medium", help="Nome do ativo ou carteira"),
         "Categoria": st.column_config.TextColumn("Categoria", width="small", help="Categoria do ativo (FIIs, Renda Fixa, Multimercados, etc.)"),
@@ -2519,7 +2667,7 @@ with tab_geral:
         "Vol_252d": st.column_config.NumberColumn("Vol (aa)", format="%.2f%%", help="Volatilidade anualizada dos últimos 252 dias úteis"),
         "Vol_Custom": st.column_config.NumberColumn("Vol Custom", format="%.2f%%", help="Volatilidade no período personalizado"),
         "Retorno_Semana": st.column_config.NumberColumn("Semana", format="%.2f%%", help="Retorno na última semana completa"),
-        "Retorno_MTD": st.column_config.NumberColumn("Mês", format="%.2f%%", help="Retorno no mês corrente (Month to Date)"),
+        "Retorno_MTD": st.column_config.NumberColumn(label_mtd, format="%.2f%%", help=help_mtd),
         "Sharpe_252d": st.column_config.NumberColumn("Sharpe", format="%.2f", help="Índice de Sharpe dos últimos 252 dias úteis - retorno ajustado ao risco"),
         "MaxDD_252d": st.column_config.NumberColumn("Max DD", format="%.2f%%", help="Máximo Drawdown dos últimos 252 dias úteis - maior queda desde o pico mais alto"),
     }
@@ -2539,13 +2687,13 @@ with tab_geral:
     # Seletor de colunas para PNG (antes dos botões)
     st.markdown("#### Selecione as colunas para exportar no PNG:")
     
-    # Mapa de nomes técnicos para nomes amigáveis
+    # Mapa de nomes técnicos para nomes amigáveis (adaptado para primeira semana)
     col_names_map = {
         'Ativo': 'Ativo',
         'Categoria': 'Categoria',
         'Última_Data': 'Última Data',
         'Retorno_Semana': 'Semana',
-        'Retorno_MTD': 'MTD',
+        'Retorno_MTD': label_mtd,  # Usa o label adaptado
         'Retorno_YTD': 'YTD',
         'Retorno_Custom': 'Custom',
         'Vol_252d': 'Vol (aa)',
@@ -2609,7 +2757,7 @@ with tab_geral:
                 rename_map = {
                     'Última_Data': 'Última Data',
                     'Retorno_Semana': 'Semana',
-                    'Retorno_MTD': 'MTD',
+                    'Retorno_MTD': label_mtd,  # Usa o label adaptado
                     'Retorno_YTD': 'YTD',
                     'Retorno_Custom': 'Custom',
                     'Vol_252d': 'Vol (aa)',
@@ -2705,13 +2853,23 @@ with tab_cat:
     
     with col_cat2:
         # Opções disponíveis dependem se período custom está calculado
-        opcoes_periodo = ["MTD", "YTD"]
+        # Adapta label MTD para primeira semana do mês
+        label_mtd_categoria = "MTD"
+        if periodos_info and periodos_info.get('primeira_semana_mes', False):
+            mes_anterior_nome = pd.to_datetime(periodos_info.get('mtd_fim')).strftime('%b/%Y')
+            label_mtd_categoria = f"Mês Ant. ({mes_anterior_nome})"
+        
+        opcoes_periodo = [label_mtd_categoria, "YTD"]
         # Sempre mostra "Personalizado" se o modo estiver ativo (mesmo que ainda inválido)
         if st.session_state.get('modo_analise') == "Período Personalizado":
             opcoes_periodo.append("Personalizado")
         
         # Ajusta index se Personalizado não estiver disponível
+        # Também adapta "MTD" para o novo label se necessário
         valor_anterior = st.session_state.periodo_categoria_grafico
+        if valor_anterior == "MTD":
+            # Se o valor anterior era MTD padrão, usa o label atual (que pode ser adaptado)
+            valor_anterior = label_mtd_categoria
         if valor_anterior not in opcoes_periodo:
             valor_anterior = "YTD"
             st.session_state.periodo_categoria_grafico = valor_anterior
@@ -2786,9 +2944,10 @@ with tab_cat:
                     cdi_row['Última Data'] = df_temp_cdi['Data'].max()
             df_cat = pd.concat([df_cat, cdi_row], ignore_index=True)
     
-    # Mapeia período para colunas
+    # Mapeia período para colunas (inclui label adaptado para primeira semana)
     periodo_map_graf = {
         "MTD": "Retorno_MTD",
+        label_mtd_categoria: "Retorno_MTD",  # Aceita também o label adaptado
         "YTD": "Retorno_YTD",
         "Personalizado": "Retorno_Custom"
     }
@@ -2796,6 +2955,7 @@ with tab_cat:
     
     periodo_map_vol = {
         "MTD": "Vol_MTD",
+        label_mtd_categoria: "Vol_MTD",  # Aceita também o label adaptado
         "YTD": "Vol_YTD",
         "Personalizado": "Vol_Custom"
     }
@@ -2830,7 +2990,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2842,7 +3002,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig1_png = go.Figure(fig1)
                 fig1_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2880,7 +3040,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2892,7 +3052,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig2_png = go.Figure(fig2)
                 fig2_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2931,7 +3091,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2943,7 +3103,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol1_png = go.Figure(fig_vol1)
                 fig_vol1_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2980,7 +3140,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2992,7 +3152,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol2_png = go.Figure(fig_vol2)
                 fig_vol2_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -3030,7 +3190,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -3042,7 +3202,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh1_png = go.Figure(fig_sh1)
                 fig_sh1_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -3086,7 +3246,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -3098,7 +3258,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh2_png = go.Figure(fig_sh2)
                 fig_sh2_png.update_layout(
-                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
+                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
