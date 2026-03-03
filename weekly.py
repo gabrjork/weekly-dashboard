@@ -1632,14 +1632,14 @@ def dataframe_to_png(df, title="", width=1100, height=None):
         header=dict(
             values=[f"<b>{col}</b>" for col in header_values],
             fill_color='#189CD8',
-            font=dict(color='white', size=16, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif'),
+            font=dict(color='white', size=16, family='DM Sans, Helvetica, Arial, sans-serif'),
             align='center',
             height=50  # Aumentado de 40 para 50
         ),
         cells=dict(
             values=cell_values,
             fill_color=[['#F8F9FA', 'white'] * len(df)],  # Alterna cores
-            font=dict(color='#2C3E50', size=15, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif'),
+            font=dict(color='#2C3E50', size=15, family='DM Sans, Helvetica, Arial, sans-serif'),
             align=alignments,
             height=40  # Aumentado de 30 para 40
         )
@@ -1650,7 +1650,7 @@ def dataframe_to_png(df, title="", width=1100, height=None):
         margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor='white',
         height=height,
-        font=dict(family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif')
+        font=dict(family='DM Sans, Helvetica, Arial, sans-serif')
     )
     
     # Exporta como PNG usando kaleido
@@ -2830,7 +2830,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2842,7 +2842,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig1_png = go.Figure(fig1)
                 fig1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2880,7 +2880,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2892,7 +2892,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig2_png = go.Figure(fig2)
                 fig2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2931,7 +2931,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2943,7 +2943,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol1_png = go.Figure(fig_vol1)
                 fig_vol1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -2980,7 +2980,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -2992,7 +2992,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol2_png = go.Figure(fig_vol2)
                 fig_vol2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -3030,7 +3030,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -3042,7 +3042,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh1_png = go.Figure(fig_sh1)
                 fig_sh1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
@@ -3086,7 +3086,7 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
+                font=dict(color='#2C3E50', size=14, family='DM Sans, Helvetica, Arial, sans-serif'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
@@ -3098,7 +3098,7 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh2_png = go.Figure(fig_sh2)
                 fig_sh2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    font=dict(size=18, family='DM Sans, Helvetica, Arial, sans-serif'),
                     xaxis=dict(tickfont=dict(size=16)),
                     yaxis=dict(tickfont=dict(size=16))
                 )
