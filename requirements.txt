@@ -5,3 +5,4 @@ requests>=2.31.0
 plotly>=5.18.0
 yfinance>=0.2.35
 pandas-market-calendars>=4.3.0
+kaleido==0.2.1
