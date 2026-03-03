@@ -792,7 +792,7 @@ ORDEM_ATIVOS_API = [# Carteiras
     # Multimercados
     "28.947.266/0001-65",	"29.732.926/0001-53",	"38.180.248/0001-54",	"24.193.691/0001-55",
     "30.521.581/0001-78",	"51.133.792/0001-03",	"36.017.731/0001-97",	"52.155.544/0001-26",
-    "35.726.908/0001-61",	"41.776.752/0001-26_subclasse1",	"ANBIMA_IHFA",
+    "35.726.908/0001-61",	"41.776.752/0001-26_subclasse1", "12.809.201/0001-13", "48.995.429/0001-92",	"ANBIMA_IHFA",
     
     # Ações
     "08.830.947/0001-31",	"IBOV",	"26.956.042/0001-94",	"11.145.320/0001-56",	"73.232.530/0001-39",
@@ -834,6 +834,7 @@ MAPA_NOMES = {
     "30.521.581/0001-78": "Zeta", "51.133.792/0001-03": "Mar Absoluto", 
     "36.017.731/0001-97": "Genoa Capital", "52.155.544/0001-26": "Ghia MM", 
     "35.726.908/0001-61": "Capstone", "41.776.752/0001-26_subclasse1": "Zeus", 
+    "12.809.201/0001-13": "Raptor", "48.995.429/0001-92": "Vestas",
     "ANBIMA_IHFA": "IHFA", 
     
     # Ações (CNPJs com pontos - compatível com ORDEM_ATIVOS_API)
@@ -852,7 +853,7 @@ CATEGORIAS = {
     "Carteiras Modelo": ["CDI", "Agressivo (Prod)", "Moderado (Prod)", "Conservador (Prod)", "Ultra (Prod)", "Agressivo (Ind)", "Moderado (Ind)", "Conservador (Ind)"],
     "FIIs": ["Ghia FIIs", "IFIX", "HGCR11", "RBRR11", "TRXF11", "PVBI11", "BRCO11", "KNCR11", "MCRE11", "RBRX11", "HSML11", "KNSC11", "ALZR11", "BTLG11", "MCCI11", "HGLG11"],
     "Renda Fixa": ["Ghia Sul 90", "Root Capital", "Sparta Max", "Ghia RF", "Valora", "M8", "Kinea Oportunidade", "Angá High Yield", "Solis Antares", "Angá Crédito", "FIDC Kinea", "IDADI"],
-    "Multimercados": ["Vertex", "Ibiuna Long Short", "Ace Capital", "SPX Nimitz", "Zeta", "Mar Absoluto", "Genoa Capital", "Ghia MM", "Capstone", "Zeus", "IHFA"],
+    "Multimercados": ["Vertex", "Ibiuna Long Short", "Ace Capital", "SPX Nimitz", "Zeta", "Mar Absoluto", "Genoa Capital", "Ghia MM", "Capstone", "Zeus", "Raptor", "Vestas", "IHFA"],
     "Ações": ["Ibovespa", "Guepardo", "Oceana", "Atmos", "Dynamo", "Squadra Long Only", "Ghia RV"],
     "Long Horizon": ["LH Income", "LH Short Duration", "LH Conservative", "LH Balanced", "LH Moderate", "LH Aggressive", "LH Equity"],
     "LH Produtos (ETFs)": ["CSPX", "EIMI", "CEUU", "IJPA", "ISFD", "LQDA", "ERNA", "FLOA", "IB01", "CBU0", "IHYA", "JPEA"]
@@ -880,7 +881,7 @@ def get_data_comdinheiro(username, password, data_inicio_str, data_fim_str, _cac
     
     # Payload 'x' - Lista de ativos separados por %2B (codificação URL de +)
     # IMPORTANTE: Todos os ativos devem ter %2B ANTES, inclusive o último (LH_Equity)
-    lista_x = "AD_Agressivo_Modelo%2BAD_Moderado_Modelo%2BAD_Conservador_Modelo%2BAD_Ultra_Modelo%2BGhiaAAAgressivoIntTot%2BGhiaAAModeradoIntTot%2BGhiaAAConservadorIntTot%2BCDI%2BGhia_FIIs%2Bifix%2BHGCR11%2BRBRR11%2BTRXF11%2BPVBI11%2BBRCO11%2BKNCR11%2BMCRE11%2BRBRX11%2BHSML11%2BKNSC11%2BALZR11%2BBTLG11%2BMCCI11%2BHGLG11%2B43105224000170%2B34431610000161%2B36352376000102%2B52155414000193%2B17313316000136_unica%2B50716952000184_unica%2B32990051000102_subclasse1%2B32238591000126%2B34583819000140_unica%2B23034819000175%2B60431592000128_unica%2BANBIMA_IDADI%2B28947266000165%2B29732926000153%2B38180248000154%2B24193691000155%2B30521581000178%2B51133792000103%2B36017731000197%2B52155544000126%2B35726908000161%2B41776752000126_subclasse1%2BANBIMA_IHFA%2B08830947000131%2BIBOV%2B26956042000194%2B11145320000156%2B73232530000139%2B09412822000154%2B61709249000165%2Blh_income%2BLH_ShortDuration%2Blh_conservative%2Blh_balanced%2Blh_moderate%2BLH_Aggressive%2BLH_Equity"
+    lista_x = "AD_Agressivo_Modelo%2BAD_Moderado_Modelo%2BAD_Conservador_Modelo%2BAD_Ultra_Modelo%2BGhiaAAAgressivoIntTot%2BGhiaAAModeradoIntTot%2BGhiaAAConservadorIntTot%2BCDI%2BGhia_FIIs%2Bifix%2BHGCR11%2BRBRR11%2BTRXF11%2BPVBI11%2BBRCO11%2BKNCR11%2BMCRE11%2BRBRX11%2BHSML11%2BKNSC11%2BALZR11%2BBTLG11%2BMCCI11%2BHGLG11%2B43105224000170%2B34431610000161%2B36352376000102%2B52155414000193%2B17313316000136_unica%2B50716952000184_unica%2B32990051000102_subclasse1%2B32238591000126%2B34583819000140_unica%2B23034819000175%2B60431592000128_unica%2BANBIMA_IDADI%2B28947266000165%2B29732926000153%2B38180248000154%2B24193691000155%2B30521581000178%2B51133792000103%2B36017731000197%2B52155544000126%2B35726908000161%2B41776752000126_subclasse1%2B12809201000113%2B48995429000192%2BANBIMA_IHFA%2B08830947000131%2BIBOV%2B26956042000194%2B11145320000156%2B73232530000139%2B09412822000154%2B61709249000165%2Blh_income%2BLH_ShortDuration%2Blh_conservative%2Blh_balanced%2Blh_moderate%2BLH_Aggressive%2BLH_Equity"
     
     # URL interna montada com datas dinâmicas
     # IMPORTANTE: A API espera url_interna COM codificação URL nos parâmetros
