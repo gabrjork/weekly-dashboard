@@ -1591,14 +1591,14 @@ def calcular_retorno_acumulado_robusto(df_retornos: pd.DataFrame) -> pd.DataFram
 # ==============================================================================
 # FUNÇÃO HELPER: EXPORTAR DATAFRAME COMO PNG (PLOTLY TABLE)
 # ==============================================================================
-def dataframe_to_png(df, title="", width=1400, height=None):
+def dataframe_to_png(df, title="", width=1100, height=None):
     """
     Converte um DataFrame do pandas em uma imagem PNG usando Plotly Table.
     
     Args:
         df: DataFrame do pandas
         title: Título da tabela (padrão: sem título)
-        width: Largura da imagem em pixels (padrão: 1400)
+        width: Largura da imagem em pixels (padrão: 1100)
         height: Altura da imagem em pixels (padrão: auto-calculada)
     
     Returns:
@@ -1621,19 +1621,25 @@ def dataframe_to_png(df, title="", width=1400, height=None):
         else:
             alignments.append('left')
     
+    # Define larguras de colunas mais compactas
+    num_cols = len(df.columns)
+    # Largura proporcional baseada no número de colunas
+    col_width = 80 if num_cols > 6 else 100
+    
     # Cria a tabela Plotly
     fig = go.Figure(data=[go.Table(
+        columnwidth=[col_width] * num_cols,  # Largura uniforme e compacta
         header=dict(
             values=[f"<b>{col}</b>" for col in header_values],
             fill_color='#189CD8',
-            font=dict(color='white', size=13, family='Plus Jakarta Sans'),
+            font=dict(color='white', size=16, family='Plus Jakarta Sans'),
             align='center',
             height=40
         ),
         cells=dict(
             values=cell_values,
             fill_color=[['#F8F9FA', 'white'] * len(df)],  # Alterna cores
-            font=dict(color='#2C3E50', size=12, family='Plus Jakarta Sans'),
+            font=dict(color='#2C3E50', size=15, family='Plus Jakarta Sans'),
             align=alignments,
             height=30
         )
@@ -2613,8 +2619,8 @@ with tab_geral:
                 rename_existing = {k: v for k, v in rename_map.items() if k in df_table_png.columns}
                 df_table_png.rename(columns=rename_existing, inplace=True)
                 
-                # Gera PNG (sem título)
-                img_bytes = dataframe_to_png(df_table_png, title="", width=1600)
+                # Gera PNG (sem título, com largura compacta)
+                img_bytes = dataframe_to_png(df_table_png, title="", width=1100)
                 
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 st.download_button(
