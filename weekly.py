@@ -1588,6 +1588,69 @@ def calcular_retorno_acumulado_robusto(df_retornos: pd.DataFrame) -> pd.DataFram
 
     return out
 
+# ==============================================================================
+# FUNÇÃO HELPER: EXPORTAR DATAFRAME COMO PNG (PLOTLY TABLE)
+# ==============================================================================
+def dataframe_to_png(df, title="", width=1400, height=None):
+    """
+    Converte um DataFrame do pandas em uma imagem PNG usando Plotly Table.
+    
+    Args:
+        df: DataFrame do pandas
+        title: Título da tabela (padrão: sem título)
+        width: Largura da imagem em pixels (padrão: 1400)
+        height: Altura da imagem em pixels (padrão: auto-calculada)
+    
+    Returns:
+        bytes: Imagem PNG em bytes, pronta para download
+    """
+    # Calcula altura baseada no número de linhas (caso não especificado)
+    if height is None:
+        # 50px de header + 35px por linha + margens mínimas
+        height = min(2000, 80 + len(df) * 35)
+    
+    # Prepara dados para Plotly Table
+    header_values = list(df.columns)
+    cell_values = [df[col].tolist() for col in df.columns]
+    
+    # Detecta colunas numéricas para alinhamento
+    alignments = []
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            alignments.append('right')
+        else:
+            alignments.append('left')
+    
+    # Cria a tabela Plotly
+    fig = go.Figure(data=[go.Table(
+        header=dict(
+            values=[f"<b>{col}</b>" for col in header_values],
+            fill_color='#189CD8',
+            font=dict(color='white', size=13, family='Plus Jakarta Sans'),
+            align='center',
+            height=40
+        ),
+        cells=dict(
+            values=cell_values,
+            fill_color=[['#F8F9FA', 'white'] * len(df)],  # Alterna cores
+            font=dict(color='#2C3E50', size=12, family='Plus Jakarta Sans'),
+            align=alignments,
+            height=30
+        )
+    )])
+    
+    # Layout sem título
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor='white',
+        height=height
+    )
+    
+    # Exporta como PNG usando kaleido
+    img_bytes = fig.to_image(format="png", width=width, height=height, scale=2)
+    
+    return img_bytes
+
 def processar_mestre(df, data_ref_analise, usar_custom, d_custom_ini, d_custom_fim, tipo_semana="Semana Passada"):
     # Debug entrada da função (salvo em session_state)
     if usar_custom:
@@ -2463,9 +2526,108 @@ with tab_geral:
     )
     
     # Botões de download
-    col_dl1, col_dl2 = st.columns(2)
+    st.markdown("---")
+    st.markdown("### Download e Exportação")
+    
+    # Seletor de colunas para PNG (antes dos botões)
+    st.markdown("#### Selecione as colunas para exportar no PNG:")
+    
+    # Mapa de nomes técnicos para nomes amigáveis
+    col_names_map = {
+        'Ativo': 'Ativo',
+        'Categoria': 'Categoria',
+        'Última_Data': 'Última Data',
+        'Retorno_Semana': 'Semana',
+        'Retorno_MTD': 'MTD',
+        'Retorno_YTD': 'YTD',
+        'Retorno_Custom': 'Custom',
+        'Vol_252d': 'Vol (aa)',
+        'Vol_Custom': 'Vol Custom',
+        'Sharpe_252d': 'Sharpe',
+        'MaxDD_252d': 'Max DD'
+    }
+    
+    # Lista de colunas disponíveis (com nomes amigáveis)
+    colunas_disponiveis = [col_names_map.get(col, col) for col in df_display.columns]
+    
+    # Inicializa session_state para colunas selecionadas (se não existir)
+    if 'colunas_png_selecionadas' not in st.session_state:
+        st.session_state.colunas_png_selecionadas = colunas_disponiveis
+    
+    colunas_para_png = st.multiselect(
+        "Colunas no PNG:",
+        options=colunas_disponiveis,
+        default=st.session_state.colunas_png_selecionadas,
+        key="multiselect_colunas_png",
+        help="Escolha quais colunas aparecerão no PNG exportado"
+    )
+    
+    # Atualiza session_state
+    st.session_state.colunas_png_selecionadas = colunas_para_png
+    
+    st.markdown("")  # Espaçamento
+    
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
     
     with col_dl1:
+        # Download PNG da tabela
+        try:
+            if not colunas_para_png:
+                st.warning("⚠️ Selecione ao menos uma coluna para exportar")
+            else:
+                # Cria mapa reverso (nome amigável -> nome técnico)
+                reverse_map = {v: k for k, v in col_names_map.items()}
+                
+                # Converte nomes amigáveis de volta para técnicos
+                colunas_tecnicas = [reverse_map.get(col, col) for col in colunas_para_png]
+                
+                # Filtra apenas colunas selecionadas
+                df_table_png = df_display[colunas_tecnicas].copy()
+                
+                # Formata colunas de data
+                if 'Última_Data' in df_table_png.columns:
+                    df_table_png['Última_Data'] = df_table_png['Última_Data'].apply(
+                        lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
+                    )
+                
+                # Formata colunas numéricas com % e casas decimais
+                for col in df_table_png.columns:
+                    if col in ['Retorno_Semana', 'Retorno_MTD', 'Retorno_YTD', 'Retorno_Custom',
+                              'Vol_252d', 'Vol_Custom', 'MaxDD_252d']:
+                        df_table_png[col] = df_table_png[col].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+                    elif col == 'Sharpe_252d':
+                        df_table_png[col] = df_table_png[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                
+                # Renomeia colunas para nomes amigáveis (apenas as que existem)
+                rename_map = {
+                    'Última_Data': 'Última Data',
+                    'Retorno_Semana': 'Semana',
+                    'Retorno_MTD': 'MTD',
+                    'Retorno_YTD': 'YTD',
+                    'Retorno_Custom': 'Custom',
+                    'Vol_252d': 'Vol (aa)',
+                    'Vol_Custom': 'Vol Custom',
+                    'Sharpe_252d': 'Sharpe',
+                    'MaxDD_252d': 'Max DD'
+                }
+                rename_existing = {k: v for k, v in rename_map.items() if k in df_table_png.columns}
+                df_table_png.rename(columns=rename_existing, inplace=True)
+                
+                # Gera PNG (sem título)
+                img_bytes = dataframe_to_png(df_table_png, title="", width=1600)
+                
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                st.download_button(
+                    label="📥 Baixar Tabela (PNG)",
+                    data=img_bytes,
+                    file_name=f"tabela_performance_{filtro_categoria}_{timestamp}.png",
+                    mime="image/png",
+                    help="Download da tabela como imagem PNG pronta para relatórios"
+                )
+        except Exception as e:
+            st.error(f"Erro ao gerar PNG da tabela: {str(e)}")
+    
+    with col_dl2:
         # Download 1: Métricas calculadas (resumo)
         # Converte valores decimais para percentuais antes de exportar
         df_metricas_export = df_display.copy()
@@ -2487,7 +2649,7 @@ with tab_geral:
             help="Download das métricas calculadas (YTD, Vol, Sharpe, etc.) - Valores em percentual"
         )
     
-    with col_dl2:
+    with col_dl3:
         # Download 2: Dados brutos completos (histórico mergeado)
         if df_historico is not None:
             # Converte de formato decimal (ponto) para formato brasileiro (vírgula) para Excel
@@ -2661,11 +2823,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig1, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig1_png = go.Figure(fig1)
+                fig1_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig1_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"retorno_semanal_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados")
     
@@ -2690,11 +2873,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig2, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig2_png = go.Figure(fig2)
+                fig2_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig2_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"retorno_{periodo_cat_graf}_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados para este período")
     
@@ -2720,11 +2924,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig_vol1, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig_vol1_png = go.Figure(fig_vol1)
+                fig_vol1_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig_vol1_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"volatilidade_semanal_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados de volatilidade")
     
@@ -2748,11 +2973,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig_vol2, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig_vol2_png = go.Figure(fig_vol2)
+                fig_vol2_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig_vol2_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"volatilidade_{periodo_cat_graf}_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados de volatilidade")
     
@@ -2777,11 +3023,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig_sh1, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig_sh1_png = go.Figure(fig_sh1)
+                fig_sh1_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig_sh1_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"sharpe_semanal_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados de Sharpe")
     
@@ -2812,11 +3079,32 @@ with tab_cat:
                 showlegend=False,
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(color='#2C3E50', size=11),
+                font=dict(color='#2C3E50', size=14, family='Plus Jakarta Sans'),
                 xaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title=""),
                 yaxis=dict(gridcolor='#E9ECEF', color='#2C3E50', title="")
             )
             st.plotly_chart(fig_sh2, use_container_width=True, theme="streamlit")
+            
+            # Botão de download PNG
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Cria cópia do gráfico com fontes maiores para PNG
+                fig_sh2_png = go.Figure(fig_sh2)
+                fig_sh2_png.update_layout(
+                    font=dict(size=18, family='Plus Jakarta Sans'),
+                    xaxis=dict(tickfont=dict(size=16)),
+                    yaxis=dict(tickfont=dict(size=16))
+                )
+                img_bytes = fig_sh2_png.to_image(format="png", width=1200, height=1200, scale=2)
+                st.download_button(
+                    label="📥 PNG",
+                    data=img_bytes,
+                    file_name=f"sharpe_{periodo_cat_graf}_{cat_select}_{timestamp}.png",
+                    mime="image/png",
+                    help="Baixar gráfico como PNG"
+                )
+            except Exception as e:
+                st.caption(f"Erro ao gerar PNG: {str(e)}")
         else:
             st.warning("Sem dados de Sharpe")
 
