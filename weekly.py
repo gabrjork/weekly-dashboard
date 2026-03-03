@@ -1606,8 +1606,8 @@ def dataframe_to_png(df, title="", width=1100, height=None):
     """
     # Calcula altura baseada no número de linhas (caso não especificado)
     if height is None:
-        # 50px de header + 35px por linha + margens mínimas
-        height = min(2000, 80 + len(df) * 35)
+        # 60px de header + 45px por linha + margens mínimas (aumentado para acomodar fonte maior)
+        height = min(2500, 100 + len(df) * 45)
     
     # Prepara dados para Plotly Table
     header_values = list(df.columns)
@@ -1632,16 +1632,16 @@ def dataframe_to_png(df, title="", width=1100, height=None):
         header=dict(
             values=[f"<b>{col}</b>" for col in header_values],
             fill_color='#189CD8',
-            font=dict(color='white', size=16, family='Plus Jakarta Sans'),
+            font=dict(color='white', size=16, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif'),
             align='center',
-            height=40
+            height=50  # Aumentado de 40 para 50
         ),
         cells=dict(
             values=cell_values,
             fill_color=[['#F8F9FA', 'white'] * len(df)],  # Alterna cores
-            font=dict(color='#2C3E50', size=15, family='Plus Jakarta Sans'),
+            font=dict(color='#2C3E50', size=15, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif'),
             align=alignments,
-            height=30
+            height=40  # Aumentado de 30 para 40
         )
     )])
     
@@ -1649,7 +1649,8 @@ def dataframe_to_png(df, title="", width=1100, height=None):
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor='white',
-        height=height
+        height=height,
+        font=dict(family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif')
     )
     
     # Exporta como PNG usando kaleido
