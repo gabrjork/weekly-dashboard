@@ -3002,9 +3002,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig1_png = go.Figure(fig1)
                 fig1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig1_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
@@ -3052,9 +3052,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig2_png = go.Figure(fig2)
                 fig2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig2_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
@@ -3103,9 +3103,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol1_png = go.Figure(fig_vol1)
                 fig_vol1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig_vol1_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
@@ -3152,9 +3152,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_vol2_png = go.Figure(fig_vol2)
                 fig_vol2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig_vol2_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
@@ -3202,9 +3202,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh1_png = go.Figure(fig_sh1)
                 fig_sh1_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig_sh1_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
@@ -3258,9 +3258,9 @@ with tab_cat:
                 # Cria cópia do gráfico com fontes maiores para PNG
                 fig_sh2_png = go.Figure(fig_sh2)
                 fig_sh2_png.update_layout(
-                    font=dict(size=18, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
-                    xaxis=dict(tickfont=dict(size=16)),
-                    yaxis=dict(tickfont=dict(size=16))
+                    font=dict(size=20, family='Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif'),
+                    xaxis=dict(tickfont=dict(size=18)),
+                    yaxis=dict(tickfont=dict(size=18))
                 )
                 img_bytes = fig_sh2_png.to_image(format="png", width=1200, height=1200, scale=2)
                 st.download_button(
