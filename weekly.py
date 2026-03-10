@@ -2647,7 +2647,7 @@ with tab_geral:
         if col in df_display.columns:
             df_display[col] = df_display[col] * 100
     
-    df_display = df_display.sort_values("Retorno_YTD", ascending=False)
+    df_display = df_display.sort_values("Retorno_Semana", ascending=False)
     
     # Configuração de colunas com adaptação para primeira semana do mês
     label_mtd = "Mês"
